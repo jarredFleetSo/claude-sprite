@@ -22,7 +22,7 @@ A remote development workspace that runs Claude Code on a persistent cloud VM (S
 +----------------------------------------------------------+
 |                     Sprite VM (Ubuntu)                    |
 |                                                          |
-|   code-server :8080   ttyd :7681   dev-server :3000      |
+|   code-server :8080   ttyd :7681   dashboard :8888       |
 |                  tmux session "workspace"                 |
 |              Claude Code CLI + Git + Node.js              |
 +----------------------------------------------------------+
@@ -62,6 +62,7 @@ sudo bash scripts/bootstrap.sh
 |------------------|------------------------------------|-----------------------|
 | Browser IDE      | `https://code.yourdomain.com`      | VS Code in browser    |
 | Browser Terminal | `https://term.yourdomain.com`      | Terminal (mobile-friendly) |
+| Dashboard        | `https://dash.yourdomain.com`      | Mobile workspace UI   |
 | App Preview      | `https://preview.yourdomain.com`   | Frontend dev server   |
 
 Or from desktop terminal:
@@ -71,6 +72,28 @@ sprite console                  # or SSH in
 tmux attach -t workspace        # attach to the persistent session
 claude                          # run Claude Code
 ```
+
+## Quick Access with `cs` CLI
+
+Install the `cs` CLI on your Mac for one-command access:
+
+```bash
+cd cli && sudo bash install.sh
+cs setup                        # first-time: pick your Sprite name and org
+```
+
+Then:
+
+```bash
+cs                              # attach to remote workspace (like running Claude Code locally)
+cs status                       # check Sprite health, tmux sessions, services
+cs start                        # wake the Sprite VM
+cs stop                         # checkpoint and idle
+cs proxy                        # proxy ports for local/mobile browser access
+cs url                          # print tunnel and proxy URLs
+```
+
+**Mobile access**: Run `cs proxy` on your Mac, then open `http://localhost:8888` on your phone (same WiFi). Or access the dashboard directly via the tunnel URL at `https://dash.yourdomain.com`.
 
 ## What Gets Installed
 
@@ -84,6 +107,15 @@ claude                          # run Claude Code
 
 ```
 claude-sprite/
+  cli/
+    cs                             # Local CLI for one-command access
+    install.sh                     # CLI installer
+  app/
+    server.py                      # Mobile web dashboard (Python stdlib)
+    public/
+      index.html                   # Dashboard UI
+      style.css                    # Terminal aesthetic styles
+      app.js                       # Status polling client
   config/
     workspace.env.example          # Configuration template
     workspace.env                  # Your config (git-ignored)
@@ -101,6 +133,7 @@ claude-sprite/
       02-code-server.sh            # code-server setup
       03-ttyd.sh                   # ttyd setup
       04-cloudflared.sh            # Cloudflare Tunnel setup
+      09-webapp.sh                 # Web dashboard service
   systemd/                         # systemd unit files
   docs/
     architecture.md                # System architecture and design

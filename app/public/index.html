@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Sprite Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>sprite<span class="accent">_</span>workspace</h1>
+      <p class="subtitle" id="hostname">connecting...</p>
+    </header>
+
+    <section class="status-bar" id="status-bar">
+      <div class="status-item">
+        <span class="dot" id="dot-ttyd"></span>
+        <span>ttyd</span>
+      </div>
+      <div class="status-item">
+        <span class="dot" id="dot-code"></span>
+        <span>code-server</span>
+      </div>
+      <div class="status-item">
+        <span class="dot" id="dot-dash"></span>
+        <span>dashboard</span>
+      </div>
+    </section>
+
+    <section class="actions">
+      <a class="btn btn-primary" id="btn-terminal" href="#">
+        <span class="btn-icon">$</span>
+        <span class="btn-label">terminal</span>
+      </a>
+      <a class="btn btn-secondary" id="btn-editor" href="#">
+        <span class="btn-icon">&lt;/&gt;</span>
+        <span class="btn-label">editor</span>
+      </a>
+    </section>
+
+    <section class="info">
+      <div class="info-row">
+        <span class="info-label">session</span>
+        <span class="info-value" id="session-state-info"><span class="badge badge-idle">idle</span></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">tmux</span>
+        <span class="info-value" id="tmux-info">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">uptime</span>
+        <span class="info-value" id="uptime-info">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">last seen</span>
+        <span class="info-value" id="last-seen-info">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">via</span>
+        <span class="info-value" id="last-client-info">—</span>
+      </div>
+    </section>
+
+    <footer>
+      <p>Sprite Workspace &middot; <span id="last-update">—</span></p>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

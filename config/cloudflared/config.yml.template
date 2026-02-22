@@ -41,6 +41,14 @@ ingress:
       noTLSVerify: true
       connectTimeout: 30s
 
+  # Web dashboard (mobile-friendly workspace UI)
+  # Provides quick access to terminal and editor from any device
+  - hostname: ${DASH_HOSTNAME}
+    service: http://localhost:${WEBAPP_PORT}
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+
   # Catch-all rule (required by cloudflared)
   # Any request that doesn't match the above hostnames returns a 404
   - service: http_status:404

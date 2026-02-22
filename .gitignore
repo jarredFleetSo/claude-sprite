@@ -17,6 +17,9 @@ node_modules/
 *.swp
 *.swo
 
+# Runtime state
+data/
+
 # Logs
 *.log
 /var/log/workspace-bootstrap.log

@@ -1,0 +1,35 @@
+[Unit]
+Description=Sprite Workspace Dashboard — Web UI
+After=network.target
+
+[Service]
+Type=simple
+
+# Run as the workspace user (default: coder)
+User=coder
+Group=coder
+
+# Load workspace environment variables (optional)
+EnvironmentFile=-/etc/default/workspace
+
+# Python stdlib HTTP server — zero external dependencies
+ExecStart=/usr/bin/python3 /home/coder/workspace/claude-sprite/app/server.py
+
+# Working directory
+WorkingDirectory=/home/coder/workspace/claude-sprite
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=webapp
+
+[Install]
+WantedBy=multi-user.target
