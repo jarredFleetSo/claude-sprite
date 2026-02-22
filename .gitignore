@@ -9,6 +9,9 @@ config/workspace.env
 # SSH keys
 .ssh/
 
+# Python
+__pycache__/
+
 # Node
 node_modules/
 
