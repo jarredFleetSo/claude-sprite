@@ -65,6 +65,24 @@ require_root() {
     fi
 }
 
+# resolve_workspace_user — return WORKSPACE_USER if it exists, otherwise auto-detect
+resolve_workspace_user() {
+    local candidate="${WORKSPACE_USER:-coder}"
+    if id "$candidate" &>/dev/null; then
+        echo "$candidate"
+        return
+    fi
+    # Fallback: check common VM users
+    for u in sprite ubuntu coder; do
+        if id "$u" &>/dev/null; then
+            echo "$u"
+            return
+        fi
+    done
+    # Last resort: use SUDO_USER or current user
+    echo "${SUDO_USER:-$(whoami)}"
+}
+
 # require_var VAR_NAME — exit 1 if the named environment variable is unset or empty
 require_var() {
     local var_name="$1"

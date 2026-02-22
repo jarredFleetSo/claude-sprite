@@ -14,7 +14,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 log_info "=== Module 05: SSH & Git ==="
 
-WORKSPACE_USER="${WORKSPACE_USER:-coder}"
+WORKSPACE_USER="$(resolve_workspace_user)"
 
 # Determine the target home directory
 if [[ "$(id -u)" -eq 0 ]] && [[ "$(whoami)" != "$WORKSPACE_USER" ]]; then

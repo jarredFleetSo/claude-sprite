@@ -20,7 +20,7 @@ require_root
 
 log_info "=== Module 08: Services ==="
 
-WORKSPACE_USER="${WORKSPACE_USER:-coder}"
+WORKSPACE_USER="$(resolve_workspace_user)"
 CODE_SERVER_PORT="${CODE_SERVER_PORT:-8080}"
 TTYD_PORT="${TTYD_PORT:-7681}"
 PREVIEW_PORT="${PREVIEW_PORT:-3000}"
@@ -124,12 +124,57 @@ register_systemd_services() {
 }
 
 # ---------------------------------------------------------------------------
+# Fallback: start services directly (no systemd, no sprite-env)
+# ---------------------------------------------------------------------------
+start_services_directly() {
+    log_info "Starting services directly (no systemd, no sprite-env) ..."
+
+    local run_as=""
+    if [[ "$(id -u)" -eq 0 ]] && [[ "$(whoami)" != "$WORKSPACE_USER" ]]; then
+        run_as="sudo -u ${WORKSPACE_USER}"
+    fi
+
+    local pids_dir="/var/run/workspace"
+    mkdir -p "$pids_dir"
+
+    # code-server
+    if is_installed code-server; then
+        $run_as code-server --bind-addr "0.0.0.0:${CODE_SERVER_PORT}" &>/var/log/code-server.log &
+        echo $! > "${pids_dir}/code-server.pid"
+        log_info "Started code-server (pid: $!)"
+    else
+        log_warn "code-server not installed — skipping."
+    fi
+
+    # ttyd
+    if is_installed ttyd; then
+        $run_as ttyd --port "$TTYD_PORT" --writable tmux new-session -A -s "$TMUX_SESSION_NAME" &>/var/log/ttyd.log &
+        echo $! > "${pids_dir}/ttyd.pid"
+        log_info "Started ttyd (pid: $!)"
+    else
+        log_warn "ttyd not installed — skipping."
+    fi
+
+    # cloudflared
+    if is_installed cloudflared && [[ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+        cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN" &>/var/log/cloudflared.log &
+        echo $! > "${pids_dir}/cloudflared.pid"
+        log_info "Started cloudflared (pid: $!)"
+    fi
+
+    log_info "Services started directly. PIDs saved in ${pids_dir}/"
+    log_info "To stop: kill \$(cat ${pids_dir}/*.pid)"
+}
+
+# ---------------------------------------------------------------------------
 # Dispatch based on environment
 # ---------------------------------------------------------------------------
-if [[ "$IS_SPRITE" == "true" ]]; then
+if [[ "$IS_SPRITE" == "true" ]] && [[ -n "$SPRITE_ENV_CMD" ]]; then
     register_sprite_services
-else
+elif [[ "${HAS_SYSTEMD:-false}" == "true" ]]; then
     register_systemd_services
+else
+    start_services_directly
 fi
 
 log_info "=== Module 08: Services — complete ==="

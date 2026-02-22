@@ -36,6 +36,18 @@ if command -v sprite-env &>/dev/null; then
     SPRITE_ENV_CMD="$(command -v sprite-env)"
 fi
 
+# 4. Check for hostname "sprite" or user "sprite" (Sprites.dev VMs)
+if [[ "$(hostname 2>/dev/null)" == "sprite" ]] || id sprite &>/dev/null; then
+    IS_SPRITE="true"
+fi
+
+# Detect systemd availability
+HAS_SYSTEMD="false"
+if command -v systemctl &>/dev/null && [[ -d /run/systemd/system ]]; then
+    HAS_SYSTEMD="true"
+fi
+export HAS_SYSTEMD
+
 export IS_SPRITE
 export SPRITE_ENV_CMD
 

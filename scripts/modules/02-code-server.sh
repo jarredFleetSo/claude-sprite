@@ -18,7 +18,7 @@ log_info "=== Module 02: code-server ==="
 
 CODE_SERVER_PORT="${CODE_SERVER_PORT:-8080}"
 CODE_SERVER_AUTH="${CODE_SERVER_AUTH:-none}"
-WORKSPACE_USER="${WORKSPACE_USER:-coder}"
+WORKSPACE_USER="$(resolve_workspace_user)"
 WORKSPACE_USER_HOME="$(eval echo "~${WORKSPACE_USER}")"
 
 # ---- Install code-server ----

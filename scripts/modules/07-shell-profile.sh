@@ -16,7 +16,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 log_info "=== Module 07: Shell Profile ==="
 
-WORKSPACE_USER="${WORKSPACE_USER:-coder}"
+WORKSPACE_USER="$(resolve_workspace_user)"
 MARKER="# workspace-profile-loaded"
 
 # Determine home directory

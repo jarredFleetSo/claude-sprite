@@ -16,7 +16,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 
 log_info "=== Module 06: tmux ==="
 
-WORKSPACE_USER="${WORKSPACE_USER:-coder}"
+WORKSPACE_USER="$(resolve_workspace_user)"
 TMUX_SESSION_NAME="${TMUX_SESSION_NAME:-workspace}"
 
 # Determine home directory
