@@ -1,0 +1,46 @@
+# Cloudflare Tunnel Configuration
+# This template is for config-file mode (alternative to token mode).
+# For token mode (MVP default), run: cloudflared tunnel run --token $CLOUDFLARE_TUNNEL_TOKEN
+#
+# To use config-file mode instead:
+# 1. Create a tunnel: cloudflared tunnel create ${WORKSPACE_NAME}
+# 2. Render this template: envsubst < config.yml.template > config.yml
+# 3. Run: cloudflared tunnel run
+
+# Tunnel ID from `cloudflared tunnel create`
+tunnel: ${CLOUDFLARE_TUNNEL_ID}
+
+# Credentials file generated when the tunnel was created
+credentials-file: /home/${WORKSPACE_USER}/.cloudflared/${CLOUDFLARE_TUNNEL_ID}.json
+
+# Ingress rules define how incoming requests are routed to local services.
+# Each rule matches a hostname and forwards traffic to the corresponding
+# local service. Rules are evaluated in order; the first match wins.
+ingress:
+  # code-server (VS Code in the browser)
+  # Provides the primary IDE experience at the configured hostname
+  - hostname: ${CODE_HOSTNAME}
+    service: http://localhost:${CODE_SERVER_PORT}
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+
+  # ttyd (web terminal)
+  # Provides terminal access with tmux session support
+  - hostname: ${TERM_HOSTNAME}
+    service: http://localhost:${TTYD_PORT}
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+
+  # Dev server preview (Vite, Next.js, etc.)
+  # Routes to whatever dev server is running on the preview port
+  - hostname: ${PREVIEW_HOSTNAME}
+    service: http://localhost:${PREVIEW_PORT}
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
+
+  # Catch-all rule (required by cloudflared)
+  # Any request that doesn't match the above hostnames returns a 404
+  - service: http_status:404

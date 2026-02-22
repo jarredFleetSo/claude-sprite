@@ -1,0 +1,35 @@
+[Unit]
+Description=code-server — VS Code in the browser
+Documentation=https://coder.com/docs/code-server
+After=network.target
+
+[Service]
+Type=simple
+
+# Run as the workspace user (default: coder)
+User=coder
+Group=coder
+
+# Load workspace environment variables (optional, dash prefix means no error if missing)
+EnvironmentFile=-/etc/default/workspace
+
+# code-server with auth disabled (auth is handled by Cloudflare Access)
+ExecStart=/usr/bin/code-server --bind-addr 0.0.0.0:8080 --auth none
+
+WorkingDirectory=/home/coder/workspace
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=code-server
+
+[Install]
+WantedBy=multi-user.target

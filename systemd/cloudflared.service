@@ -1,0 +1,35 @@
+[Unit]
+Description=Cloudflare Tunnel — Secure ingress for workspace services
+Documentation=https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# cloudflared can run as root or a dedicated cloudflared user
+User=root
+Group=root
+
+# Load workspace environment variables (provides CLOUDFLARE_TUNNEL_TOKEN)
+EnvironmentFile=-/etc/default/workspace
+
+# Run the tunnel in token mode
+# The token is provided via the environment file above
+ExecStart=/usr/local/bin/cloudflared tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+
+# Restart policy (longer delay for tunnel reconnection)
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=full
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cloudflared
+
+[Install]
+WantedBy=multi-user.target

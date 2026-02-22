@@ -1,0 +1,31 @@
+// =============================================================================
+// Next.js Configuration Template — Remote Development Workspace
+// =============================================================================
+// This template configures Next.js for remote preview access via Cloudflare Tunnel.
+//
+// Usage:
+//   envsubst < next.config.mjs.template > next.config.mjs
+//
+// Start the dev server with:
+//   next dev -H 0.0.0.0 -p ${PREVIEW_PORT}
+//   (or use the alias: preview-next)
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Allow remote preview access
+  // The dev server should be started with: next dev -H 0.0.0.0 -p ${PREVIEW_PORT}
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '${PREVIEW_HOSTNAME}',
+      },
+    ],
+  },
+
+  // Allow the preview hostname for development
+  // This prevents Next.js from blocking requests from the tunnel domain
+  allowedDevOrigins: ['https://${PREVIEW_HOSTNAME}'],
+};
+
+export default nextConfig;

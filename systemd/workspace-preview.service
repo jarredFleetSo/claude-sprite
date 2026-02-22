@@ -1,0 +1,45 @@
+[Unit]
+Description=Workspace Dev Server Preview
+# This is a template service — customize ExecStart for your project's dev server.
+# Examples:
+#   Next.js:  /usr/bin/npx next dev -H 0.0.0.0 -p 3000
+#   Vite:     /usr/bin/npx vite --host 0.0.0.0 --port 3000
+#   Generic:  /usr/bin/python3 -m http.server 3000 --bind 0.0.0.0
+After=network.target
+
+[Service]
+Type=simple
+
+# Run as the workspace user (default: coder)
+User=coder
+Group=coder
+
+# Load workspace environment variables (optional)
+EnvironmentFile=-/etc/default/workspace
+
+# Set Node.js / project environment
+Environment=NODE_ENV=development
+Environment=PORT=3000
+
+# CUSTOMIZE THIS: Replace with your project's dev server command
+# The server MUST bind to 0.0.0.0 (not localhost) for tunnel access
+ExecStart=/usr/bin/npx next dev -H 0.0.0.0 -p 3000
+
+WorkingDirectory=/home/coder/workspace
+
+# Use on-failure so the service doesn't restart endlessly if the project
+# isn't set up yet or has build errors
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=workspace-preview
+
+[Install]
+WantedBy=multi-user.target

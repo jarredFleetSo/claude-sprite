@@ -1,0 +1,31 @@
+// =============================================================================
+// Vite Configuration Template — Remote Development Workspace
+// =============================================================================
+// This template configures Vite for remote preview access via Cloudflare Tunnel.
+//
+// Usage:
+//   envsubst < vite.config.ts.template > vite.config.ts
+//
+// Or use directly with the preview-vite alias:
+//   preview-vite  (starts vite --host 0.0.0.0 --port $PREVIEW_PORT)
+
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  server: {
+    // Bind to all interfaces so the Cloudflare Tunnel can reach the dev server
+    host: '0.0.0.0',
+    port: ${PREVIEW_PORT},
+
+    // Allow connections from the Cloudflare Tunnel hostname
+    allowedHosts: ['${PREVIEW_HOSTNAME}'],
+
+    // HMR configuration for remote access through Cloudflare Tunnel
+    // Uncomment and configure if HMR doesn't work through the tunnel:
+    // hmr: {
+    //   host: '${PREVIEW_HOSTNAME}',
+    //   protocol: 'wss',
+    //   clientPort: 443,
+    // },
+  },
+});

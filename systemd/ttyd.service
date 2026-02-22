@@ -1,0 +1,35 @@
+[Unit]
+Description=ttyd — Web Terminal with tmux integration
+Documentation=https://github.com/tsl0922/ttyd
+After=network.target
+
+[Service]
+Type=simple
+
+# Run as the workspace user (default: coder)
+User=coder
+Group=coder
+
+# Load workspace environment variables (optional)
+EnvironmentFile=-/etc/default/workspace
+
+# ttyd launches tmux, attaching to or creating the workspace session
+# --writable: allows terminal input
+# tmux new-session -A -s workspace: attach to existing "workspace" session or create a new one
+ExecStart=/usr/local/bin/ttyd --port 7681 --writable tmux new-session -A -s workspace
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ttyd
+
+[Install]
+WantedBy=multi-user.target

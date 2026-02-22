@@ -1,0 +1,22 @@
+# Environment secrets
+config/workspace.env
+*.env
+!*.env.example
+
+# Cloudflare credentials
+.cloudflared/
+
+# SSH keys
+.ssh/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# Logs
+*.log
+/var/log/workspace-bootstrap.log
