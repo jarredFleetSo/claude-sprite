@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,6 +18,19 @@
       <h1>sprite<span class="accent">_</span>workspace</h1>
       <p class="subtitle" id="hostname">connecting...</p>
     </header>
+
+    <section class="terminal-section" id="terminal-section">
+      <div class="terminal-toolbar">
+        <div class="terminal-toolbar-left">
+          <span class="dot" id="term-status-dot"></span>
+          <select class="sprite-select" id="sprite-select">
+            <option value="">select sprite...</option>
+          </select>
+        </div>
+        <button class="btn-reconnect" id="btn-reconnect" title="Reconnect">reconnect</button>
+      </div>
+      <div id="terminal"></div>
+    </section>
 
     <section class="status-bar" id="status-bar">
       <div class="status-item">
@@ -34,14 +48,26 @@
     </section>
 
     <section class="actions">
-      <a class="btn btn-primary" id="btn-terminal" href="#">
-        <span class="btn-icon">$</span>
-        <span class="btn-label">terminal</span>
-      </a>
       <a class="btn btn-secondary" id="btn-editor" href="#">
         <span class="btn-icon">&lt;/&gt;</span>
         <span class="btn-label">editor</span>
       </a>
+    </section>
+
+    <section class="create-section" id="create-section" style="display:none">
+      <div class="create-form">
+        <input type="text" class="create-input" id="create-name" placeholder="sprite name" autocomplete="off" spellcheck="false">
+        <button class="btn btn-create" id="btn-create">create</button>
+      </div>
+      <div class="create-status" id="create-status"></div>
+    </section>
+
+    <section class="sprites-list" id="sprites-section" style="display:none">
+      <div class="sprites-header">
+        <span class="sprites-label">// workspaces</span>
+        <span class="sprites-count" id="sprites-count"></span>
+      </div>
+      <div id="sprites-container"></div>
     </section>
 
     <section class="info">
@@ -67,10 +93,36 @@
       </div>
     </section>
 
+    <section class="settings" id="settings-section">
+      <h2 class="settings-title">settings</h2>
+      <div class="setting-row">
+        <label class="setting-label" for="token-anthropic">anthropic key</label>
+        <div class="setting-field">
+          <input type="password" class="setting-input" id="token-anthropic"
+                 placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+          <span class="setting-status" id="status-anthropic"></span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label class="setting-label" for="token-sprite">sprite token</label>
+        <div class="setting-field">
+          <input type="password" class="setting-input" id="token-sprite"
+                 placeholder="token..." autocomplete="off" spellcheck="false">
+          <span class="setting-status" id="status-sprite"></span>
+        </div>
+      </div>
+      <div class="setting-actions">
+        <button class="btn btn-save" id="btn-save-tokens">save</button>
+        <span class="save-status" id="save-status"></span>
+      </div>
+    </section>
+
     <footer>
       <p>Sprite Workspace &middot; <span id="last-update">—</span></p>
     </footer>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PORT="${WEBAPP_PORT:-8888}"
+URL="http://localhost:${PORT}"
+
+# If port is already in use, just open the browser and exit
+if lsof -iTCP:"$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "Dashboard already running on ${URL}"
+    open "$URL"
+    exit 0
+fi
+
+# Open browser shortly after server starts
+(sleep 1 && echo "Opening browser..." && open "$URL") &
+
+python3 "${SCRIPT_DIR}/app/server.py"

@@ -18,15 +18,16 @@ CS_CONFIG_FILE="${CS_CONFIG_DIR}/config"
 CS_SPRITE_NAME="${CS_SPRITE_NAME:-}"
 CS_ORG="${CS_ORG:-}"
 CS_TMUX_SESSION="${CS_TMUX_SESSION:-workspace}"
+CS_SPRITE_TOKEN="${SPRITE_TOKEN:-${CS_SPRITE_TOKEN:-}}"
 
 # ---------------------------------------------------------------------------
 # Colors
 # ---------------------------------------------------------------------------
 if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
     _G="\033[0;32m" _Y="\033[0;33m" _R="\033[0;31m"
-    _C="\033[0;36m" _B="\033[1m"    _0="\033[0m"
+    _C="\033[0;36m" _B="\033[1m"    _D="\033[2m"    _0="\033[0m"
 else
-    _G="" _Y="" _R="" _C="" _B="" _0=""
+    _G="" _Y="" _R="" _C="" _B="" _D="" _0=""
 fi
 
 # ---------------------------------------------------------------------------
@@ -55,14 +56,21 @@ save_config() {
 CS_SPRITE_NAME="${CS_SPRITE_NAME}"
 CS_ORG="${CS_ORG}"
 CS_TMUX_SESSION="${CS_TMUX_SESSION}"
+CS_SPRITE_TOKEN="${CS_SPRITE_TOKEN}"
 EOF
     chmod 600 "$CS_CONFIG_FILE"
     info "Config saved to ${CS_CONFIG_FILE}"
 }
 
-require_config() {
+# If an inline sprite name was given (e.g. `cs stop axiom`), use it.
+# Otherwise fall back to the configured default.
+resolve_sprite() {
+    local inline="${1:-}"
+    if [[ -n "$inline" ]]; then
+        CS_SPRITE_NAME="$inline"
+    fi
     if [[ -z "$CS_SPRITE_NAME" ]]; then
-        die "Sprite name not configured. Run 'cs setup' first."
+        die "Sprite name required. Usage: cs <command> <sprite-name>"
     fi
 }
 
@@ -74,26 +82,449 @@ sprite_args() {
     echo "$args"
 }
 
-# ---------------------------------------------------------------------------
-# Subcommands
-# ---------------------------------------------------------------------------
+require_token() {
+    if [[ -z "$CS_SPRITE_TOKEN" ]]; then
+        die "Sprite API token not configured. Run 'cs setup' or set SPRITE_TOKEN."
+    fi
+}
 
-cmd_attach() {
+# Fetch sprites from API. Outputs tab-separated lines:
+#   name \t status \t last_active_at \t last_started_at \t url
+# Uses `sprite api` (which handles keyring auth) if available, else falls back to curl+token.
+api_list_sprites() {
     require_sprite_cli
-    require_config
+    local response org_flag=""
+    if [[ -n "$CS_ORG" ]]; then
+        org_flag="-o ${CS_ORG}"
+    fi
+
+    # sprite api outputs progress/header lines to stderr; capture stdout only
+    # shellcheck disable=SC2086
+    response=$(sprite api $org_flag /v1/sprites 2>/dev/null) \
+        || {
+            # Fallback: try curl with explicit token
+            if [[ -n "$CS_SPRITE_TOKEN" ]]; then
+                response=$(curl -sf -H "Authorization: Bearer ${CS_SPRITE_TOKEN}" \
+                    "https://api.sprites.dev/v1/sprites" 2>/dev/null) \
+                    || die "Failed to fetch sprites. Check your token and network."
+            else
+                die "Failed to fetch sprites. Run 'sprite login' or set a token with 'cs setup'."
+            fi
+        }
+
+    echo "$response" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+sprites = data if isinstance(data, list) else data.get('sprites', data.get('data', []))
+for s in sprites:
+    name = s.get('name', 'unknown')
+    status = s.get('status', 'unknown')
+    last_active = s.get('last_active_at', s.get('lastActiveAt', ''))
+    last_started = s.get('last_started_at', s.get('lastStartedAt', ''))
+    url = s.get('url', '')
+    print(f'{name}\t{status}\t{last_active}\t{last_started}\t{url}')
+" 2>/dev/null || die "Failed to parse API response."
+}
+
+# Convert ISO timestamp to relative time string
+format_relative_time() {
+    local ts="$1"
+    if [[ -z "$ts" ]]; then
+        echo "—"
+        return
+    fi
+    python3 -c "
+import sys
+from datetime import datetime, timezone
+ts = sys.argv[1]
+try:
+    # Handle various ISO formats
+    ts = ts.replace('Z', '+00:00')
+    if '.' in ts:
+        dt = datetime.fromisoformat(ts)
+    else:
+        dt = datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    diff = now - dt
+    secs = int(diff.total_seconds())
+    if secs < 0:
+        print('just now')
+    elif secs < 60:
+        print(f'{secs}s')
+    elif secs < 3600:
+        print(f'{secs // 60}m')
+    elif secs < 86400:
+        h = secs // 3600
+        m = (secs % 3600) // 60
+        print(f'{h}h {m:02d}m' if m else f'{h}h')
+    else:
+        d = secs // 86400
+        print(f'{d}d')
+except Exception:
+    print('—')
+" "$ts" 2>/dev/null || echo "—"
+}
+
+# Show interactive picker, set CS_SPRITE_NAME to selection.
+# Sets CS_PICKED_STATUS to the raw status of the selected sprite.
+pick_sprite() {
+    local sprites_data
+    sprites_data=$(api_list_sprites)
+
+    if [[ -z "$sprites_data" ]]; then
+        die "No sprites found."
+    fi
+
+    local names=() statuses=() actives=() starteds=()
+    while IFS=$'\t' read -r name status active started _url; do
+        names+=("$name")
+        statuses+=("$status")
+        actives+=("$active")
+        starteds+=("$started")
+    done <<< "$sprites_data"
+
+    local count=${#names[@]}
+    if [[ $count -eq 0 ]]; then
+        die "No sprites found."
+    fi
+
+    # Print header
+    printf "\n  ${_B}workspaces${_0}\n"
+    printf "  ${_D}──────────────────────────────────────────${_0}\n"
+
+    for i in $(seq 0 $((count - 1))); do
+        local name="${names[$i]}"
+        local status="${statuses[$i]}"
+        local icon time_str
+
+        case "$status" in
+            running|active|warm)
+                icon="${_G}●${_0}"
+                time_str=$(format_relative_time "${starteds[$i]}")
+                if [[ "$time_str" == "—" ]]; then
+                    time_str=""
+                else
+                    time_str="${_D}uptime ${time_str}${_0}"
+                fi
+                status="${_G}running${_0}"
+                ;;
+            sleeping|suspended|hibernating)
+                icon="${_Y}◐${_0}"
+                time_str=$(format_relative_time "${actives[$i]}")
+                if [[ "$time_str" == "—" ]]; then
+                    time_str=""
+                else
+                    time_str="${_D}last active ${time_str} ago${_0}"
+                fi
+                status="${_Y}sleeping${_0}"
+                ;;
+            *)
+                icon="${_D}○${_0}"
+                time_str=$(format_relative_time "${actives[$i]}")
+                if [[ "$time_str" == "—" ]]; then
+                    time_str=""
+                else
+                    time_str="${_D}last active ${time_str} ago${_0}"
+                fi
+                status="${_D}${statuses[$i]}${_0}"
+                ;;
+        esac
+
+        printf "  %d) %-18s %b %-10b  %b\n" "$((i + 1))" "$name" "$icon" "$status" "$time_str"
+    done
+
+    printf "  ${_D}──────────────────────────────────────────${_0}\n"
+    printf "  +) ${_C}create new sprite${_0}\n"
+    printf "  ${_D}──────────────────────────────────────────${_0}\n"
+    printf "  #? "
+    read -r choice
+
+    # Handle "create new" option
+    if [[ "$choice" == "+" ]]; then
+        do_create
+        return
+    fi
+
+    # Default to 1 if only one sprite and user just hits Enter
+    if [[ -z "$choice" ]] && (( count == 1 )); then
+        choice=1
+    fi
+
+    if [[ -z "$choice" ]] || ! [[ "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > count )); then
+        die "Invalid selection. Enter a number 1-${count}."
+    fi
+
+    CS_SPRITE_NAME="${names[$((choice - 1))]}"
+    CS_PICKED_STATUS="${statuses[$((choice - 1))]}"
+}
+
+# Create a new sprite
+do_create() {
+    printf "  name? "
+    read -r new_name
+    if [[ -z "$new_name" ]]; then
+        die "Sprite name required."
+    fi
+    local org_flag=""
+    if [[ -n "$CS_ORG" ]]; then
+        org_flag="-o ${CS_ORG}"
+    fi
+    info "Creating sprite '${new_name}'..."
+    # shellcheck disable=SC2086
+    exec sprite create $org_flag "$new_name"
+}
+
+# Show action menu after selecting a sprite.
+# Adapts options based on sprite status.
+pick_action() {
+    local raw_status="$1"
+
+    printf "\n  ${_B}${CS_SPRITE_NAME}${_0}"
+
+    # Show status badge inline
+    case "$raw_status" in
+        running|active|warm) printf "  ${_G}● running${_0}\n" ;;
+        sleeping|suspended|hibernating) printf "  ${_Y}◐ sleeping${_0}\n" ;;
+        *) printf "  ${_D}○ ${raw_status}${_0}\n" ;;
+    esac
+
+    printf "  ${_D}──────────────────────────────────────────${_0}\n"
+
+    local options=()
+    case "$raw_status" in
+        running|active|warm)
+            options=("attach" "stop" "ssh-keys" "destroy")
+            printf "  1) ${_B}attach${_0}      Connect to tmux session\n"
+            printf "  2) stop        Checkpoint and idle\n"
+            printf "  3) ssh-keys    Sync SSH keys for git\n"
+            printf "  4) ${_R}destroy${_0}     Delete this sprite\n"
+            ;;
+        sleeping|suspended|hibernating)
+            options=("start" "attach" "stop" "destroy")
+            printf "  1) ${_B}start${_0}       Wake the sprite\n"
+            printf "  2) attach      Wake and connect\n"
+            printf "  3) stop        Checkpoint and idle\n"
+            printf "  4) ${_R}destroy${_0}     Delete this sprite\n"
+            ;;
+        *)
+            options=("start" "attach" "ssh-keys" "destroy")
+            printf "  1) ${_B}start${_0}       Wake the sprite\n"
+            printf "  2) attach      Wake and connect\n"
+            printf "  3) ssh-keys    Sync SSH keys for git\n"
+            printf "  4) ${_R}destroy${_0}     Delete this sprite\n"
+            ;;
+    esac
+
+    printf "  ${_D}──────────────────────────────────────────${_0}\n"
+    printf "  action? "
+    read -r action_choice
+
+    # Default to 1 on Enter
+    if [[ -z "$action_choice" ]]; then
+        action_choice=1
+    fi
+
+    local option_count=${#options[@]}
+    if ! [[ "$action_choice" =~ ^[0-9]+$ ]] || (( action_choice < 1 || action_choice > option_count )); then
+        die "Invalid selection."
+    fi
+
+    local action="${options[$((action_choice - 1))]}"
+
+    case "$action" in
+        attach)
+            do_attach
+            ;;
+        start)
+            info "Waking ${CS_SPRITE_NAME}..."
+            # shellcheck disable=SC2046
+            sprite exec $(sprite_args) -- echo "Sprite is awake."
+            info "Done."
+            ;;
+        stop)
+            info "Requesting checkpoint for ${CS_SPRITE_NAME}..."
+            # shellcheck disable=SC2046
+            sprite stop $(sprite_args) 2>/dev/null || warn "sprite stop not available — Sprite will idle automatically."
+            info "Done."
+            ;;
+        ssh-keys)
+            cmd_ssh_keys
+            ;;
+        destroy)
+            cmd_destroy
+            ;;
+        status)
+            cmd_status
+            ;;
+    esac
+}
+
+# Ensure shell environment is set up on the sprite (idempotent)
+setup_sprite_shell() {
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c '
+        # Only run once — skip if marker exists
+        [ -f ~/.cs_shell_ready ] && exit 0
+
+        # --- Install modern CLI tools ---
+        # starship prompt
+        if ! command -v starship &>/dev/null; then
+            curl -sS https://starship.rs/install.sh | sh -s -- -y 2>/dev/null
+        fi
+
+        # fzf (fuzzy finder)
+        if ! command -v fzf &>/dev/null; then
+            git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf 2>/dev/null
+            ~/.fzf/install --all --no-update-rc 2>/dev/null
+        fi
+
+        # eza (modern ls), bat (cat with syntax highlighting), ripgrep, fd
+        if command -v apt-get &>/dev/null; then
+            sudo apt-get update -qq 2>/dev/null
+            sudo apt-get install -y -qq eza bat ripgrep fd-find 2>/dev/null || true
+        fi
+
+        # --- zsh plugins (lightweight, no oh-my-zsh) ---
+        ZSH_PLUGINS="${HOME}/.zsh"
+        mkdir -p "$ZSH_PLUGINS"
+
+        # zsh-autosuggestions
+        if [ ! -d "$ZSH_PLUGINS/zsh-autosuggestions" ]; then
+            git clone --depth 1 https://github.com/zsh-users/zsh-autosuggestions \
+                "$ZSH_PLUGINS/zsh-autosuggestions" 2>/dev/null
+        fi
+
+        # zsh-syntax-highlighting
+        if [ ! -d "$ZSH_PLUGINS/zsh-syntax-highlighting" ]; then
+            git clone --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting \
+                "$ZSH_PLUGINS/zsh-syntax-highlighting" 2>/dev/null
+        fi
+
+        # --- Configure zsh ---
+        cat >> ~/.zshrc << '"'"'RCEOF'"'"'
+
+# ── cs shell kit ──────────────────────────────────────────
+# Claude Code
+alias c="claude --dangerously-skip-permissions"
+alias cc="claude --dangerously-skip-permissions -c"
+
+# Git
+alias gs="git status"
+alias gd="git diff"
+alias ga="git add"
+alias gc="git commit"
+alias gco="git checkout"
+alias gp="git push"
+alias gl="git log --oneline -20"
+alias gll="git log --oneline --graph --all -30"
+
+# Files
+alias ls="eza --icons 2>/dev/null || ls --color=auto"
+alias ll="eza -lah --icons 2>/dev/null || ls -lah"
+alias la="eza -a --icons 2>/dev/null || ls -A"
+alias tree="eza --tree --level=3 --icons 2>/dev/null || find . -type f | head -50"
+alias cat="batcat --style=plain 2>/dev/null || bat --style=plain 2>/dev/null || cat"
+alias ..="cd .."
+alias ...="cd ../.."
+
+# Search
+alias rg="rg --smart-case"
+alias f="fd --type f"
+
+# Starship prompt
+eval "$(starship init zsh 2>/dev/null)" || true
+
+# Plugins
+[ -f ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh
+[ -f ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# fzf
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+export FZF_DEFAULT_OPTS="--height 40% --reverse --border"
+
+# Claude Code API key
+[ -f ~/.claude_env ] && . ~/.claude_env
+
+# cd into project dir on login
+_cs_cd_project() {
+    local d
+    d=$(find ~ -maxdepth 1 -mindepth 1 -type d ! -name ".*" | head -1)
+    [ -n "$d" ] && cd "$d"
+}
+_cs_cd_project
+unfunction _cs_cd_project
+# ── end cs shell kit ──────────────────────────────────────
+RCEOF
+
+        # --- Starship config (minimal, fast) ---
+        mkdir -p ~/.config
+        cat > ~/.config/starship.toml << '"'"'STAREOF'"'"'
+format = """$directory$git_branch$git_status$character"""
+
+[directory]
+truncation_length = 3
+style = "bold cyan"
+
+[git_branch]
+format = " [$branch]($style) "
+style = "bold purple"
+
+[git_status]
+format = "[$all_status$ahead_behind]($style) "
+style = "bold red"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+STAREOF
+
+        # --- Set default shell to zsh ---
+        if command -v chsh &>/dev/null; then
+            sudo chsh -s /usr/bin/zsh $(whoami) 2>/dev/null || true
+        fi
+
+        touch ~/.cs_shell_ready
+    ' 2>/dev/null
+}
+
+# Shared attach logic — always drops into a shell, `c` to launch claude
+do_attach() {
     info "Attaching to tmux session '${CS_TMUX_SESSION}' on ${CS_SPRITE_NAME}..."
     # Best-effort session touch — don't block attach if dashboard is down
     # shellcheck disable=SC2046
     sprite exec $(sprite_args) -- \
         curl -s -X POST "http://localhost:8888/api/sessions/${CS_TMUX_SESSION}/touch" \
         -d client=terminal &>/dev/null &
+
+    # Ensure shell kit is installed (fast no-op after first run)
+    setup_sprite_shell
+
+    # Use zsh if available, otherwise default shell
     # shellcheck disable=SC2046
-    exec sprite exec $(sprite_args) -tty -- tmux attach-session -A -t "$CS_TMUX_SESSION"
+    exec sprite exec $(sprite_args) -tty -- \
+        tmux new-session -A -s "$CS_TMUX_SESSION" "exec zsh -l 2>/dev/null || exec bash -l"
+}
+
+# ---------------------------------------------------------------------------
+# Subcommands
+# ---------------------------------------------------------------------------
+
+cmd_attach() {
+    require_sprite_cli
+    # If no sprite configured, fall through to picker with action menu
+    if [[ -z "$CS_SPRITE_NAME" ]]; then
+        pick_sprite
+        pick_action "$CS_PICKED_STATUS"
+        return
+    fi
+    do_attach
 }
 
 cmd_status() {
     require_sprite_cli
-    require_config
+    resolve_sprite "${1:-}"
     info "Checking status of ${CS_SPRITE_NAME}..."
 
     # Sprite status
@@ -125,7 +556,7 @@ cmd_status() {
 
 cmd_start() {
     require_sprite_cli
-    require_config
+    resolve_sprite "${1:-}"
     info "Waking Sprite ${CS_SPRITE_NAME}..."
     # exec triggers wake on Sprites.dev
     # shellcheck disable=SC2046
@@ -135,7 +566,7 @@ cmd_start() {
 
 cmd_stop() {
     require_sprite_cli
-    require_config
+    resolve_sprite "${1:-}"
     info "Requesting checkpoint for ${CS_SPRITE_NAME}..."
     # shellcheck disable=SC2046
     sprite stop $(sprite_args) 2>/dev/null || warn "sprite stop not available — Sprite will idle automatically."
@@ -144,7 +575,7 @@ cmd_stop() {
 
 cmd_proxy() {
     require_sprite_cli
-    require_config
+    resolve_sprite ""
     local ports="${1:-8888 7681 8080}"
     info "Proxying ports: ${ports}"
     info "Dashboard → http://localhost:8888"
@@ -157,7 +588,7 @@ cmd_proxy() {
 
 cmd_url() {
     require_sprite_cli
-    require_config
+    resolve_sprite "${1:-}"
     # shellcheck disable=SC2046
     sprite exec $(sprite_args) -- bash -c '
         echo "=== Access URLs ==="
@@ -181,12 +612,505 @@ cmd_url() {
     '
 }
 
+cmd_list() {
+    local sprites_data
+    sprites_data=$(api_list_sprites)
+
+    if [[ -z "$sprites_data" ]]; then
+        warn "No sprites found."
+        return
+    fi
+
+    printf "\n  ${_B}%-20s %-12s %s${_0}\n" "NAME" "STATUS" "LAST ACTIVITY"
+    printf "  ${_D}──────────────────────────────────────────${_0}\n"
+
+    while IFS=$'\t' read -r name status active started _url; do
+        local icon time_str display_status
+
+        case "$status" in
+            running|active|warm)
+                icon="${_G}●${_0}"
+                time_str=$(format_relative_time "$started")
+                if [[ "$time_str" == "—" ]]; then time_str=""; else time_str="uptime ${time_str}"; fi
+                display_status="${_G}running${_0}   "
+                ;;
+            sleeping|suspended|hibernating)
+                icon="${_Y}◐${_0}"
+                time_str=$(format_relative_time "$active")
+                if [[ "$time_str" == "—" ]]; then time_str=""; else time_str="last active ${time_str} ago"; fi
+                display_status="${_Y}sleeping${_0}  "
+                ;;
+            *)
+                icon="${_D}○${_0}"
+                time_str=$(format_relative_time "$active")
+                if [[ "$time_str" == "—" ]]; then time_str=""; else time_str="last active ${time_str} ago"; fi
+                display_status="${_D}${status}${_0}     "
+                ;;
+        esac
+
+        printf "  %-20s %b %b  ${_D}%s${_0}\n" "$name" "$icon" "$display_status" "$time_str"
+    done <<< "$sprites_data"
+
+    echo ""
+}
+
+cmd_pick() {
+    require_sprite_cli
+    pick_sprite
+    pick_action "$CS_PICKED_STATUS"
+}
+
+cmd_create() {
+    require_sprite_cli
+    local name="${1:-}"
+    if [[ -z "$name" ]]; then
+        printf "Sprite name: "
+        read -r name
+        if [[ -z "$name" ]]; then
+            die "Sprite name required."
+        fi
+    fi
+    local org_flag=""
+    if [[ -n "$CS_ORG" ]]; then
+        org_flag="-o ${CS_ORG}"
+    fi
+    info "Creating sprite '${name}'..."
+    # shellcheck disable=SC2086
+    exec sprite create $org_flag "$name"
+}
+
+cmd_sync() {
+    require_sprite_cli
+    local local_path="${1:-.}"
+    local sprite_target="${2:-}"
+
+    # Resolve local path to absolute
+    local_path=$(cd "$local_path" 2>/dev/null && pwd) || die "Local path not found: $1"
+    local dir_name
+    dir_name=$(basename "$local_path")
+
+    # If no sprite target given, resolve from config or pick
+    if [[ -z "$sprite_target" ]]; then
+        if [[ -n "$CS_SPRITE_NAME" ]]; then
+            sprite_target="$CS_SPRITE_NAME"
+        else
+            pick_sprite
+            sprite_target="$CS_SPRITE_NAME"
+        fi
+    else
+        CS_SPRITE_NAME="$sprite_target"
+    fi
+
+    local remote_dir="~/${dir_name}"
+    info "Syncing ${local_path} → ${sprite_target}:${remote_dir}"
+
+    # Count files for progress
+    local file_count
+    file_count=$(cd "$local_path" && git ls-files 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$file_count" -gt 0 ]]; then
+        info "Syncing ${file_count} tracked files (git ls-files)..."
+        # Use git ls-files to only sync tracked files (respects .gitignore)
+        (cd "$local_path" && git ls-files -z | tar -cf - --no-xattrs --null -T - 2>/dev/null \
+            || git ls-files -z | tar -cf - --null -T -) \
+            | sprite exec $(sprite_args) -- bash -c "mkdir -p ~/${dir_name} && tar -xf - -C ~/${dir_name}" 2>/dev/null
+    else
+        info "No git repo detected. Syncing all files..."
+        # Fallback: tar everything except common excludes
+        tar -cf - --no-xattrs \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='__pycache__' \
+            --exclude='.venv' \
+            --exclude='venv' \
+            --exclude='.env' \
+            -C "$(dirname "$local_path")" "$dir_name" 2>/dev/null \
+            | sprite exec $(sprite_args) -- tar -xf - -C ~/ 2>/dev/null
+    fi
+
+    info "Done. Project available at ~/${dir_name} on ${sprite_target}."
+}
+
+cmd_pull() {
+    require_sprite_cli
+    local remote_path="${1:-}"
+    local local_dest="${2:-.}"
+
+    if [[ -z "$remote_path" ]]; then
+        die "Usage: cs pull <remote-path> [local-dest] [sprite-name]"
+    fi
+
+    # Third arg is sprite name
+    local sprite_target="${3:-}"
+    if [[ -z "$sprite_target" ]]; then
+        if [[ -n "$CS_SPRITE_NAME" ]]; then
+            sprite_target="$CS_SPRITE_NAME"
+        else
+            pick_sprite
+            sprite_target="$CS_SPRITE_NAME"
+        fi
+    else
+        CS_SPRITE_NAME="$sprite_target"
+    fi
+
+    info "Pulling ${sprite_target}:${remote_path} → ${local_dest}"
+
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c '
+        # Expand ~ and resolve path
+        path="'"${remote_path}"'"
+        path="${path/#\~/$HOME}"
+        # Default to ~/path if not absolute
+        [[ "$path" != /* ]] && path="$HOME/$path"
+
+        if [ -d "$path" ]; then
+            tar -cf - --exclude=".git" --exclude="node_modules" --exclude="__pycache__" \
+                --exclude=".venv" --exclude="venv" -C "$(dirname "$path")" "$(basename "$path")"
+        elif [ -f "$path" ]; then
+            tar -cf - -C "$(dirname "$path")" "$(basename "$path")"
+        else
+            echo "ERROR: $path not found" >&2
+            exit 1
+        fi
+    ' | tar -xf - -C "$local_dest" 2>/dev/null
+
+    info "Done."
+}
+
+cmd_cp() {
+    require_sprite_cli
+    if [[ $# -lt 2 ]]; then
+        die "Usage: cs cp <src...> <dest>
+
+  Copy files between local machine and sprite.
+  Prefix remote paths with ':' (colon).
+
+  Examples:
+    cs cp seed.db :~/axiom/                # local → sprite
+    cs cp a.json b.db :/home/sprite/app/   # multiple local → sprite
+    cs cp :~/axiom/seed.db ./              # sprite → local
+    cs cp :~/axiom/a.db :~/axiom/b.json ./ # multiple remote → local"
+    fi
+
+    # Last arg is destination, rest are sources
+    local -a all=("$@")
+    local dest="${all[-1]}"
+    local -a srcs=("${all[@]:0:$#-1}")
+
+    # Determine direction from source prefixes
+    local direction=""
+    for src in "${srcs[@]}"; do
+        if [[ "$src" == :* ]]; then
+            [[ "$direction" == "push" ]] && die "Cannot mix local and remote sources"
+            direction="pull"
+        else
+            [[ "$direction" == "pull" ]] && die "Cannot mix local and remote sources"
+            direction="push"
+        fi
+    done
+
+    # Resolve sprite — auto-select if only one exists
+    if [[ -z "$CS_SPRITE_NAME" ]]; then
+        local sprites_json
+        sprites_json=$(api_list_sprites 2>/dev/null) || true
+        local count
+        count=$(echo "$sprites_json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d if isinstance(d,list) else d.get('sprites',d.get('data',[]))))" 2>/dev/null) || count=0
+        if [[ "$count" -eq 1 ]]; then
+            CS_SPRITE_NAME=$(echo "$sprites_json" | python3 -c "import json,sys; d=json.load(sys.stdin); s=d if isinstance(d,list) else d.get('sprites',d.get('data',[])); print(s[0].get('name',''))" 2>/dev/null)
+            info "Using sprite: ${CS_SPRITE_NAME}"
+        else
+            pick_sprite
+        fi
+    fi
+
+    if [[ "$direction" == "push" ]]; then
+        # Local → sprite
+        [[ "$dest" != :* ]] && die "Destination must be remote (prefix with :)"
+        local remote_dest="${dest#:}"
+
+        # Verify local files exist
+        for src in "${srcs[@]}"; do
+            [[ -e "$src" ]] || die "Not found: $src"
+        done
+
+        info "Copying ${#srcs[@]} file(s) → ${CS_SPRITE_NAME}:${remote_dest}"
+
+        # Build tar args: -C <dir> <basename> for each file
+        local -a tar_args=()
+        for src in "${srcs[@]}"; do
+            tar_args+=(-C "$(cd "$(dirname "$src")" && pwd)" "$(basename "$src")")
+        done
+
+        # --no-xattrs avoids macOS "LIBARCHIVE.xattr" warnings on Linux extract
+        # shellcheck disable=SC2046
+        tar -cf - --no-xattrs "${tar_args[@]}" 2>/dev/null \
+            | sprite exec $(sprite_args) -- bash -c '
+                dest='"'${remote_dest}'"'
+                dest="${dest/#\~/$HOME}"
+                [ "${dest:0:1}" != "/" ] && dest="$HOME/$dest"
+                if [ -d "$dest" ] || [ "${dest: -1}" = "/" ]; then
+                    mkdir -p "$dest"
+                    tar -xf - -C "$dest"
+                else
+                    mkdir -p "$(dirname "$dest")"
+                    tar -xf - -C "$(dirname "$dest")"
+                fi
+            '
+        info "Done."
+
+    else
+        # Sprite → local
+        [[ "$dest" == :* ]] && die "Destination must be local (no : prefix)"
+        local local_dest="$dest"
+        mkdir -p "$local_dest" 2>/dev/null || true
+
+        info "Copying ${#srcs[@]} file(s) ← ${CS_SPRITE_NAME}"
+
+        # Build a script that resolves paths and tars them on the remote
+        local script='set -e; tar_args=()'
+        for src in "${srcs[@]}"; do
+            local rpath="${src#:}"
+            script+='
+p='"'${rpath}'"'
+p="${p/#\~/$HOME}"
+[ "${p:0:1}" != "/" ] && p="$HOME/$p"
+[ -e "$p" ] || { echo "Not found: $p" >&2; exit 1; }
+tar_args+=(-C "$(dirname "$p")" "$(basename "$p")")'
+        done
+        script+='
+tar -cf - "${tar_args[@]}"'
+
+        # shellcheck disable=SC2046
+        sprite exec $(sprite_args) -- bash -c "$script" \
+            | tar -xf - -C "$local_dest"
+
+        info "Done."
+    fi
+}
+
+cmd_exec() {
+    require_sprite_cli
+    if [[ $# -eq 0 ]]; then
+        die "Usage: cs exec <command...>"
+    fi
+    # Use configured sprite or picker
+    if [[ -z "$CS_SPRITE_NAME" ]]; then
+        pick_sprite
+    fi
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -tty -- "$@"
+}
+
+cmd_clone() {
+    require_sprite_cli
+    local repo_url="${1:-}"
+    local sprite_target="${2:-}"
+
+    if [[ -z "$repo_url" ]]; then
+        die "Usage: cs clone <git-url> [sprite-name]"
+    fi
+
+    if [[ -z "$sprite_target" ]]; then
+        if [[ -n "$CS_SPRITE_NAME" ]]; then
+            sprite_target="$CS_SPRITE_NAME"
+        else
+            pick_sprite
+            sprite_target="$CS_SPRITE_NAME"
+        fi
+    else
+        CS_SPRITE_NAME="$sprite_target"
+    fi
+
+    info "Cloning ${repo_url} on ${sprite_target}..."
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -tty -- git clone "$repo_url"
+    info "Done."
+}
+
+cmd_shell_setup() {
+    require_sprite_cli
+    resolve_sprite "${1:-}"
+    info "Installing shell environment on ${CS_SPRITE_NAME}..."
+    info "This installs: starship prompt, fzf, eza, bat, ripgrep, zsh plugins"
+    # Remove marker to force re-run
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- rm -f ~/.cs_shell_ready 2>/dev/null
+    setup_sprite_shell
+    info "Done. Reconnect with 'cs' to use the new shell."
+}
+
+cmd_destroy() {
+    require_sprite_cli
+    resolve_sprite "${1:-}"
+    printf "${_R}Destroy${_0} sprite ${_B}${CS_SPRITE_NAME}${_0}? This cannot be undone. [y/N] "
+    read -r confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        info "Cancelled."
+        return
+    fi
+    info "Destroying sprite '${CS_SPRITE_NAME}'..."
+    # shellcheck disable=SC2046
+    sprite destroy $(sprite_args) 2>/dev/null \
+        || die "Failed to destroy sprite."
+    info "Done."
+}
+
+cmd_ssh_keys() {
+    require_sprite_cli
+    resolve_sprite "${1:-}"
+
+    # Find local SSH keys
+    local key_file=""
+    for candidate in "${HOME}/.ssh/id_ed25519.pub" "${HOME}/.ssh/id_rsa.pub" "${HOME}/.ssh/id_ecdsa.pub"; do
+        if [[ -f "$candidate" ]]; then
+            key_file="$candidate"
+            break
+        fi
+    done
+
+    if [[ -z "$key_file" ]]; then
+        die "No SSH public key found in ~/.ssh/. Generate one with: ssh-keygen -t ed25519"
+    fi
+
+    local pub_key
+    pub_key=$(<"$key_file")
+    info "Syncing ${key_file} to ${CS_SPRITE_NAME}..."
+
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c "
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+        if ! grep -qF '${pub_key}' ~/.ssh/authorized_keys 2>/dev/null; then
+            echo '${pub_key}' >> ~/.ssh/authorized_keys
+        fi
+        # Also add to known keys so git clone works
+        if [ ! -f ~/.ssh/id_ed25519 ] && [ ! -f ~/.ssh/id_rsa ]; then
+            echo 'Note: No private key on sprite. Use the steps below to sync.'
+        fi
+    "
+
+    # Copy the private key too so git works from within the sprite
+    local priv_key="${key_file%.pub}"
+    if [[ -f "$priv_key" ]]; then
+        info "Syncing private key..."
+        # shellcheck disable=SC2046
+        sprite exec $(sprite_args) -- bash -c "
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            cat > ~/.ssh/$(basename "$priv_key") << 'KEYEOF'
+$(cat "$priv_key")
+KEYEOF
+            chmod 600 ~/.ssh/$(basename "$priv_key")
+            cat > ~/.ssh/$(basename "$key_file") << 'KEYEOF'
+${pub_key}
+KEYEOF
+            chmod 644 ~/.ssh/$(basename "$key_file")
+        "
+    fi
+
+    # Set up known_hosts for github/gitlab
+    info "Adding GitHub/GitLab to known_hosts..."
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c "
+        mkdir -p ~/.ssh
+        ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+        ssh-keyscan -t ed25519 gitlab.com >> ~/.ssh/known_hosts 2>/dev/null
+        sort -u ~/.ssh/known_hosts -o ~/.ssh/known_hosts
+    "
+
+    info "Done. You can now git clone via SSH inside ${CS_SPRITE_NAME}."
+}
+
+cmd_auth() {
+    require_sprite_cli
+    resolve_sprite "${1:-}"
+
+    # Check if already authenticated
+    # shellcheck disable=SC2046
+    local has_key
+    has_key=$(sprite exec $(sprite_args) -- bash -l -c 'echo "$ANTHROPIC_API_KEY"' 2>/dev/null) || true
+
+    if [[ -n "$has_key" ]]; then
+        local masked="${has_key:0:10}...${has_key: -4}"
+        info "API key already set on ${CS_SPRITE_NAME} (${masked})"
+        printf "Replace it? [y/N] "
+        read -r confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+            return
+        fi
+    fi
+
+    printf "Anthropic API key: "
+    read -rs api_key
+    echo ""
+
+    if [[ -z "$api_key" ]]; then
+        die "API key required. Get one at https://console.anthropic.com/settings/keys"
+    fi
+
+    info "Pushing API key to ${CS_SPRITE_NAME}..."
+
+    # 1. Write key to env file sourced by .bashrc/.profile
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c "
+        echo 'export ANTHROPIC_API_KEY=\"${api_key}\"' > ~/.claude_env
+        chmod 600 ~/.claude_env
+
+        if ! grep -qF '.claude_env' ~/.bashrc 2>/dev/null; then
+            echo '' >> ~/.bashrc
+            echo '# Claude Code API key' >> ~/.bashrc
+            echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.bashrc
+        fi
+        if ! grep -qF '.claude_env' ~/.profile 2>/dev/null; then
+            echo '' >> ~/.profile
+            echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.profile
+        fi
+    "
+
+    # 2. Mark onboarding as complete so interactive TUI skips login screens
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c "
+        export ANTHROPIC_API_KEY='${api_key}'
+        # Run a quick non-interactive call to bootstrap .claude.json
+        echo hi | claude 2>/dev/null || true
+        # Then patch onboarding flags
+        python3 -c \"
+import json, os
+path = os.path.expanduser('~/.claude.json')
+data = {}
+if os.path.exists(path):
+    with open(path) as f:
+        data = json.load(f)
+data['hasCompletedOnboarding'] = True
+data['lastOnboardingVersion'] = '99.0.0'
+for proj in data.get('projects', {}):
+    data['projects'][proj]['hasTrustDialogAccepted'] = True
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+\"
+    "
+
+    info "Done. Claude Code is ready on ${CS_SPRITE_NAME}."
+}
+
 cmd_setup() {
     printf "${_B}cs setup${_0} — Configure your Claude Sprite workspace\n\n"
 
+    # Sprite token
+    local default_token="${CS_SPRITE_TOKEN:-}"
+    local token_display
+    if [[ -n "$default_token" ]]; then
+        token_display="${default_token:0:8}...${default_token: -4}"
+    else
+        token_display=""
+    fi
+    printf "Sprite API token [${_C}${token_display}${_0}]: "
+    read -r input
+    if [[ -n "$input" ]]; then
+        CS_SPRITE_TOKEN="$input"
+    fi
+
     # Sprite name
-    local default_name="${CS_SPRITE_NAME:-claude-code}"
-    printf "Sprite name [${_C}${default_name}${_0}]: "
+    local default_name="${CS_SPRITE_NAME:-}"
+    printf "Default sprite name (blank for picker) [${_C}${default_name}${_0}]: "
     read -r input
     CS_SPRITE_NAME="${input:-$default_name}"
 
@@ -207,35 +1131,78 @@ cmd_setup() {
 
     echo ""
     info "Setup complete. Try running:"
-    echo "  cs          # attach to workspace"
+    echo "  cs          # attach to workspace (or pick if no default)"
+    echo "  cs list     # list all sprites"
+    echo "  cs pick     # interactive sprite picker"
     echo "  cs status   # check Sprite status"
-    echo "  cs proxy    # proxy ports for local browser access"
+}
+
+cmd_web() {
+    local port="${1:-8888}"
+
+    # Find the app directory — relative to this script
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local app_dir="${script_dir}/../app"
+
+    if [[ ! -f "${app_dir}/server.py" ]]; then
+        die "Cannot find app/server.py (looked in ${app_dir})"
+    fi
+
+    info "Starting dashboard on http://localhost:${port}"
+
+    # Open browser after a short delay
+    (
+        sleep 1
+        if command -v open &>/dev/null; then
+            open "http://localhost:${port}"
+        elif command -v xdg-open &>/dev/null; then
+            xdg-open "http://localhost:${port}"
+        fi
+    ) &
+
+    # Run the server — Ctrl+C to stop
+    WEBAPP_PORT="${port}" exec python3 "${app_dir}/server.py"
 }
 
 cmd_help() {
-    cat <<EOF
-${_B}cs${_0} — Claude Sprite CLI v${CS_VERSION}
-
-${_B}Usage:${_0}
-  cs                  Attach to the remote tmux workspace session
-  cs status           Show Sprite status, tmux sessions, and services
-  cs start            Wake the Sprite VM
-  cs stop             Checkpoint and idle the Sprite VM
-  cs proxy [ports]    Proxy remote ports to localhost (default: 8888 7681 8080)
-  cs url              Print access URLs (tunnel and proxy)
-  cs setup            Interactive first-time configuration
-  cs help             Show this help message
-  cs version          Show version
-
-${_B}Configuration:${_0}
-  ${CS_CONFIG_FILE}
-
-${_B}Examples:${_0}
-  cs                  # Jump straight into Claude Code
-  cs proxy            # Then open http://localhost:8888 on your phone
-  cs status           # Quick health check
-
-EOF
+    printf "%bcs%b — Claude Sprite CLI v%s\n" "$_B" "$_0" "$CS_VERSION"
+    printf "\n"
+    printf "%bUsage:%b\n" "$_B" "$_0"
+    printf "  cs                    Attach to workspace (picker if no default sprite)\n"
+    printf "  cs pick               Interactive sprite picker — always shows menu\n"
+    printf "  cs list               List all sprites with statuses\n"
+    printf "  cs cp <src...> <dest>  Copy files to/from a sprite (: = remote)\n"
+    printf "  cs sync [path] [name] Push local directory to a sprite\n"
+    printf "  cs pull <path> [dest] Pull a file or directory from a sprite\n"
+    printf "  cs clone <url> [name] Git clone a repo directly on a sprite\n"
+    printf "  cs exec <cmd...>      Run a command on the configured sprite\n"
+    printf "  cs create [name]      Create a new sprite\n"
+    printf "  cs destroy [name]     Destroy a sprite\n"
+    printf "  cs auth [name]        Set up Claude Code auth on a sprite (one-time)\n"
+    printf "  cs start [name]       Wake the Sprite VM\n"
+    printf "  cs stop [name]        Checkpoint and idle the Sprite VM\n"
+    printf "  cs status [name]      Show Sprite status, tmux sessions, and services\n"
+    printf "  cs ssh-keys [name]    Sync local SSH keys to a sprite for git clone\n"
+    printf "  cs shell-setup [name] Install shell environment (starship, fzf, eza, etc.)\n"
+    printf "  cs web                Open the dashboard in your browser\n"
+    printf "  cs proxy [ports]      Proxy remote ports to localhost (default: 8888 7681 8080)\n"
+    printf "  cs url [name]         Print access URLs (tunnel and proxy)\n"
+    printf "  cs setup              Interactive first-time configuration\n"
+    printf "  cs help               Show this help message\n"
+    printf "  cs version            Show version\n"
+    printf "\n"
+    printf "%bConfiguration:%b\n" "$_B" "$_0"
+    printf "  %s\n" "$CS_CONFIG_FILE"
+    printf "\n"
+    printf "%bExamples:%b\n" "$_B" "$_0"
+    printf "  cs                    # Jump straight into your workspace\n"
+    printf "  cs sync . axiom       # Push current project to a sprite\n"
+    printf "  cs clone <url> axiom  # Clone a repo on a sprite\n"
+    printf "  cs auth axiom         # One-time API key setup\n"
+    printf "  cs ssh-keys axiom     # Push SSH keys for git\n"
+    printf "  cs list               # See sprite statuses at a glance\n"
+    printf "\n"
 }
 
 cmd_version() {
@@ -249,11 +1216,24 @@ load_config
 
 case "${1:-}" in
     ""|attach)   cmd_attach ;;
-    status)      cmd_status ;;
-    start)       cmd_start ;;
-    stop)        cmd_stop ;;
+    pick)        cmd_pick ;;
+    list|ls)     cmd_list ;;
+    cp|copy)     shift; cmd_cp "$@" ;;
+    sync|push)   shift; cmd_sync "$@" ;;
+    pull)        shift; cmd_pull "$@" ;;
+    clone)       shift; cmd_clone "$@" ;;
+    exec|run)    shift; cmd_exec "$@" ;;
+    create|new)  shift; cmd_create "$*" ;;
+    destroy|rm)  shift; cmd_destroy "$*" ;;
+    auth)        shift; cmd_auth "$*" ;;
+    status)      shift; cmd_status "$*" ;;
+    start)       shift; cmd_start "$*" ;;
+    stop)        shift; cmd_stop "$*" ;;
+    ssh-keys)    shift; cmd_ssh_keys "$*" ;;
+    shell-setup) shift; cmd_shell_setup "$*" ;;
     proxy)       shift; cmd_proxy "$*" ;;
-    url)         cmd_url ;;
+    url)         shift; cmd_url "$*" ;;
+    web)         shift; cmd_web "$@" ;;
     setup)       cmd_setup ;;
     help|--help|-h) cmd_help ;;
     version|--version|-v) cmd_version ;;
