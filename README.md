@@ -102,6 +102,15 @@ cs cp <src> <dest>       # copy files (prefix remote paths with :)
 cs exec <cmd...>         # run a command on the sprite
 ```
 
+**Context sync** — push/pull Claude Code sessions between local and remote so you can `--resume` on either side:
+
+```bash
+cs context push <name>   # push Claude sessions, history, and settings to sprite
+cs context pull <name>   # pull Claude sessions, history, and settings from sprite
+```
+
+Session transcripts, project memory, history entries, `.claude/` settings, and `CLAUDE.md` are all synced with automatic path remapping. After a push, you get a ready-to-copy `claude --resume <id>` command.
+
 **Setup and config:**
 
 ```bash
