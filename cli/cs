@@ -82,6 +82,67 @@ sprite_args() {
     echo "$args"
 }
 
+# Encode a path the way Claude does: replace / with -
+# e.g. /Users/jarredparrett/git/foo → -Users-jarredparrett-git-foo
+_encode_claude_path() {
+    echo "$1" | sed 's|/|-|g'
+}
+
+# Get the local project path (git root or cwd)
+_get_local_project_path() {
+    git rev-parse --show-toplevel 2>/dev/null || pwd
+}
+
+# Get the remote project path on the Sprite
+# Looks for a matching git repo in ~/, falls back to ~/basename
+_get_remote_project_path() {
+    local local_basename
+    local_basename=$(basename "$(_get_local_project_path)")
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c '
+        basename="'"${local_basename}"'"
+        # Look for a matching git repo in ~/
+        for d in ~/*/; do
+            [ -d "${d}.git" ] || continue
+            if [ "$(basename "$d")" = "'"${local_basename}"'" ]; then
+                cd "$d" && pwd
+                exit 0
+            fi
+        done
+        # Fallback: ~/basename
+        echo "$HOME/${basename}"
+    ' 2>/dev/null
+}
+
+# Get the most recent session ID from history.jsonl for a given project path
+_get_latest_session_id() {
+    local project_path="$1"
+    local history_file="${HOME}/.claude/history.jsonl"
+    [[ -f "$history_file" ]] || return 0
+    python3 -c "
+import json, sys
+project = sys.argv[1]
+latest = None
+with open(sys.argv[2]) as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        ep = entry.get('projectPath', entry.get('project_path', ''))
+        if ep == project:
+            sid = entry.get('sessionId', entry.get('session_id', ''))
+            ts = entry.get('timestamp', entry.get('ts', ''))
+            if sid and (latest is None or ts > latest[1]):
+                latest = (sid, ts)
+if latest:
+    print(latest[0])
+" "$project_path" "$history_file" 2>/dev/null
+}
+
 require_token() {
     if [[ -z "$CS_SPRITE_TOKEN" ]]; then
         die "Sprite API token not configured. Run 'cs setup' or set SPRITE_TOKEN."
@@ -776,6 +837,337 @@ cmd_pull() {
     info "Done."
 }
 
+cmd_context_push() {
+    require_sprite_cli
+    local sprite_target="${1:-}"
+
+    # Resolve sprite
+    if [[ -z "$sprite_target" ]]; then
+        if [[ -n "$CS_SPRITE_NAME" ]]; then
+            sprite_target="$CS_SPRITE_NAME"
+        else
+            pick_sprite
+            sprite_target="$CS_SPRITE_NAME"
+        fi
+    else
+        CS_SPRITE_NAME="$sprite_target"
+    fi
+
+    # Compute paths
+    local local_project
+    local_project=$(_get_local_project_path)
+    local local_encoded
+    local_encoded=$(_encode_claude_path "$local_project")
+    local local_claude_dir="${HOME}/.claude/projects/${local_encoded}"
+
+    info "Local project: ${local_project}"
+
+    local remote_project
+    remote_project=$(_get_remote_project_path)
+    local remote_encoded
+    remote_encoded=$(_encode_claude_path "$remote_project")
+
+    info "Remote project: ${remote_project}"
+
+    # 1. Push session transcripts
+    if [[ -d "$local_claude_dir" ]]; then
+        info "Pushing session transcripts..."
+        tar -cf - --no-xattrs -C "${HOME}/.claude/projects" "$local_encoded" 2>/dev/null \
+            | sprite exec $(sprite_args) -- bash -c '
+                remote_encoded="'"${remote_encoded}"'"
+                local_encoded="'"${local_encoded}"'"
+                mkdir -p ~/.claude/projects
+                # Extract into a temp name, then move to remote-encoded path
+                tar -xf - -C ~/.claude/projects
+                if [ "$local_encoded" != "$remote_encoded" ]; then
+                    # Merge: if remote dir already exists, copy contents over
+                    if [ -d ~/.claude/projects/"$remote_encoded" ]; then
+                        cp -a ~/.claude/projects/"$local_encoded"/. ~/.claude/projects/"$remote_encoded"/ 2>/dev/null || true
+                    else
+                        mv ~/.claude/projects/"$local_encoded" ~/.claude/projects/"$remote_encoded"
+                    fi
+                    rm -rf ~/.claude/projects/"$local_encoded"
+                fi
+            ' 2>/dev/null
+    else
+        warn "No session transcripts found at ${local_claude_dir}"
+    fi
+
+    # 2. Merge history entries
+    local local_history="${HOME}/.claude/history.jsonl"
+    if [[ -f "$local_history" ]]; then
+        info "Merging history entries..."
+        # Filter history for this project and rewrite paths
+        python3 -c "
+import json, sys
+local_project = sys.argv[1]
+remote_project = sys.argv[2]
+with open(sys.argv[3]) as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        ep = entry.get('projectPath', entry.get('project_path', ''))
+        if ep == local_project:
+            # Rewrite path to remote
+            if 'projectPath' in entry:
+                entry['projectPath'] = remote_project
+            if 'project_path' in entry:
+                entry['project_path'] = remote_project
+            print(json.dumps(entry))
+" "$local_project" "$remote_project" "$local_history" 2>/dev/null \
+            | sprite exec $(sprite_args) -- bash -c '
+                mkdir -p ~/.claude
+                # Read incoming entries from stdin, deduplicate by (sessionId, timestamp) and append
+                python3 -c "
+import json, sys
+
+# Read existing entries
+existing = set()
+history_path = sys.argv[1]
+try:
+    with open(history_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                sid = entry.get(\"sessionId\", entry.get(\"session_id\", \"\"))
+                ts = entry.get(\"timestamp\", entry.get(\"ts\", \"\"))
+                if sid and ts:
+                    existing.add((sid, ts))
+            except json.JSONDecodeError:
+                continue
+except FileNotFoundError:
+    pass
+
+# Append new unique entries
+added = 0
+with open(history_path, \"a\") as out:
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+            sid = entry.get(\"sessionId\", entry.get(\"session_id\", \"\"))
+            ts = entry.get(\"timestamp\", entry.get(\"ts\", \"\"))
+            key = (sid, ts)
+            if sid and ts and key not in existing:
+                out.write(json.dumps(entry) + \"\n\")
+                existing.add(key)
+                added += 1
+        except json.JSONDecodeError:
+            continue
+print(f\"{added} history entries added\")
+" ~/.claude/history.jsonl
+            ' 2>/dev/null
+    else
+        warn "No history.jsonl found"
+    fi
+
+    # 3. Push project settings (.claude/ dir and CLAUDE.md)
+    local repo_claude_dir="${local_project}/.claude"
+    local repo_claudemd="${local_project}/CLAUDE.md"
+    local has_settings=""
+
+    if [[ -d "$repo_claude_dir" ]] || [[ -f "$repo_claudemd" ]]; then
+        info "Pushing project settings..."
+        local tar_args=()
+        if [[ -d "$repo_claude_dir" ]]; then
+            tar_args+=(-C "$local_project" ".claude")
+            has_settings="1"
+        fi
+        if [[ -f "$repo_claudemd" ]]; then
+            tar_args+=(-C "$local_project" "CLAUDE.md")
+            has_settings="1"
+        fi
+        if [[ -n "$has_settings" ]]; then
+            tar -cf - --no-xattrs "${tar_args[@]}" 2>/dev/null \
+                | sprite exec $(sprite_args) -- bash -c '
+                    remote_project="'"${remote_project}"'"
+                    mkdir -p "$remote_project"
+                    tar -xf - -C "$remote_project"
+                ' 2>/dev/null
+        fi
+    fi
+
+    # 4. Print latest session ID with resume command
+    local latest_session
+    latest_session=$(_get_latest_session_id "$local_project")
+    echo ""
+    info "Context pushed successfully."
+    if [[ -n "$latest_session" ]]; then
+        info "Most recent session: ${latest_session}"
+        echo ""
+        printf "  claude --resume %s\n" "$latest_session"
+        echo ""
+    fi
+}
+
+cmd_context_pull() {
+    require_sprite_cli
+    local sprite_target="${1:-}"
+
+    # Resolve sprite
+    if [[ -z "$sprite_target" ]]; then
+        if [[ -n "$CS_SPRITE_NAME" ]]; then
+            sprite_target="$CS_SPRITE_NAME"
+        else
+            pick_sprite
+            sprite_target="$CS_SPRITE_NAME"
+        fi
+    else
+        CS_SPRITE_NAME="$sprite_target"
+    fi
+
+    # Compute paths
+    local local_project
+    local_project=$(_get_local_project_path)
+    local local_encoded
+    local_encoded=$(_encode_claude_path "$local_project")
+    local local_claude_dir="${HOME}/.claude/projects/${local_encoded}"
+
+    info "Local project: ${local_project}"
+
+    local remote_project
+    remote_project=$(_get_remote_project_path)
+    local remote_encoded
+    remote_encoded=$(_encode_claude_path "$remote_project")
+
+    info "Remote project: ${remote_project}"
+
+    # 1. Pull session transcripts
+    info "Pulling session transcripts..."
+    mkdir -p "${HOME}/.claude/projects"
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c '
+        remote_encoded="'"${remote_encoded}"'"
+        dir="$HOME/.claude/projects/$remote_encoded"
+        if [ -d "$dir" ]; then
+            tar -cf - -C "$HOME/.claude/projects" "$remote_encoded"
+        else
+            echo "NO_SESSIONS" >&2
+            # Output empty tar to avoid pipe error
+            tar -cf - --files-from /dev/null
+        fi
+    ' 2>/dev/null | tar -xf - -C "${HOME}/.claude/projects" 2>/dev/null
+
+    # Rename remote-encoded dir to local-encoded if different
+    if [[ "$remote_encoded" != "$local_encoded" ]]; then
+        local extracted="${HOME}/.claude/projects/${remote_encoded}"
+        if [[ -d "$extracted" ]]; then
+            if [[ -d "$local_claude_dir" ]]; then
+                # Merge into existing
+                cp -a "${extracted}/." "${local_claude_dir}/" 2>/dev/null || true
+            else
+                mv "$extracted" "$local_claude_dir"
+            fi
+            rm -rf "$extracted"
+        fi
+    fi
+
+    # 2. Merge history entries
+    info "Merging history entries..."
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c '
+        if [ -f ~/.claude/history.jsonl ]; then
+            cat ~/.claude/history.jsonl
+        fi
+    ' 2>/dev/null | python3 -c "
+import json, sys
+
+remote_project = sys.argv[1]
+local_project = sys.argv[2]
+history_path = sys.argv[3]
+
+# Read existing local entries
+existing = set()
+try:
+    with open(history_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                sid = entry.get('sessionId', entry.get('session_id', ''))
+                ts = entry.get('timestamp', entry.get('ts', ''))
+                if sid and ts:
+                    existing.add((sid, ts))
+            except json.JSONDecodeError:
+                continue
+except FileNotFoundError:
+    pass
+
+# Filter for project and append with remapped paths
+added = 0
+with open(history_path, 'a') as out:
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        ep = entry.get('projectPath', entry.get('project_path', ''))
+        if ep != remote_project:
+            continue
+        sid = entry.get('sessionId', entry.get('session_id', ''))
+        ts = entry.get('timestamp', entry.get('ts', ''))
+        key = (sid, ts)
+        if sid and ts and key not in existing:
+            if 'projectPath' in entry:
+                entry['projectPath'] = local_project
+            if 'project_path' in entry:
+                entry['project_path'] = local_project
+            out.write(json.dumps(entry) + '\n')
+            existing.add(key)
+            added += 1
+print(f'{added} history entries pulled')
+" "$remote_project" "$local_project" "${HOME}/.claude/history.jsonl" 2>/dev/null
+
+    # 3. Pull project settings
+    info "Pulling project settings..."
+    # shellcheck disable=SC2046
+    sprite exec $(sprite_args) -- bash -c '
+        remote_project="'"${remote_project}"'"
+        tar_args=()
+        has_files=""
+        if [ -d "$remote_project/.claude" ]; then
+            tar_args+=(-C "$remote_project" ".claude")
+            has_files="1"
+        fi
+        if [ -f "$remote_project/CLAUDE.md" ]; then
+            tar_args+=(-C "$remote_project" "CLAUDE.md")
+            has_files="1"
+        fi
+        if [ -n "$has_files" ]; then
+            tar -cf - "${tar_args[@]}"
+        else
+            tar -cf - --files-from /dev/null
+        fi
+    ' 2>/dev/null | tar -xf - -C "$local_project" 2>/dev/null
+
+    # 4. Print latest session ID
+    local latest_session
+    latest_session=$(_get_latest_session_id "$local_project")
+    echo ""
+    info "Context pulled successfully."
+    if [[ -n "$latest_session" ]]; then
+        info "Most recent session: ${latest_session}"
+        echo ""
+        printf "  claude --resume %s\n" "$latest_session"
+        echo ""
+    fi
+}
+
 cmd_cp() {
     require_sprite_cli
     if [[ $# -lt 2 ]]; then
@@ -1174,6 +1566,8 @@ cmd_help() {
     printf "  cs list               List all sprites with statuses\n"
     printf "  cs cp <src...> <dest>  Copy files to/from a sprite (: = remote)\n"
     printf "  cs sync [path] [name] Push local directory to a sprite\n"
+    printf "  cs context push [name] Push Claude sessions & settings to a sprite\n"
+    printf "  cs context pull [name] Pull Claude sessions & settings from a sprite\n"
     printf "  cs pull <path> [dest] Pull a file or directory from a sprite\n"
     printf "  cs clone <url> [name] Git clone a repo directly on a sprite\n"
     printf "  cs exec <cmd...>      Run a command on the configured sprite\n"
@@ -1221,6 +1615,14 @@ case "${1:-}" in
     cp|copy)     shift; cmd_cp "$@" ;;
     sync|push)   shift; cmd_sync "$@" ;;
     pull)        shift; cmd_pull "$@" ;;
+    context)
+        shift
+        case "${1:-}" in
+            push) shift; cmd_context_push "$@" ;;
+            pull) shift; cmd_context_pull "$@" ;;
+            *)    die "Usage: cs context <push|pull> [sprite-name]" ;;
+        esac
+        ;;
     clone)       shift; cmd_clone "$@" ;;
     exec|run)    shift; cmd_exec "$@" ;;
     create|new)  shift; cmd_create "$*" ;;
