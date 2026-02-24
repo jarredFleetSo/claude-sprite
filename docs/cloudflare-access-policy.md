@@ -303,3 +303,44 @@ After completing the setup, verify each hostname:
 4. Repeat for `https://term.yourdomain.com` and `https://preview.yourdomain.com`
 
 If authentication was already completed for one hostname, the session cookie may carry over depending on your domain and cookie scope configuration.
+
+---
+
+## Dashboard Authentication (Defense-in-Depth)
+
+The dashboard server (`app/server.py`) includes its own authentication layer as defense-in-depth, independent of Cloudflare Access at the edge.
+
+### Auth Modes (checked in order)
+
+1. **Localhost bypass** — requests from `127.0.0.1` / `::1` are always allowed. Local development just works with no configuration.
+2. **Cloudflare Access JWT** — if a `Cf-Access-Jwt-Assertion` header is present, the dashboard validates the JWT payload's `exp` and `aud` claims. Signature verification is not needed because Cloudflare's edge already performed it.
+3. **Bearer token fallback** — for non-Cloudflare deployments, set `DASHBOARD_TOKEN` and pass `Authorization: Bearer <token>` with each request.
+4. **No auth configured** — if neither `CF_POLICY_AUD` nor `DASHBOARD_TOKEN` is set, all requests are allowed (backward compatible with the default setup).
+
+The `/health` endpoint is always exempt from authentication (for monitoring).
+
+### Setting Up Cloudflare Access AUD Validation
+
+1. Go to https://one.dash.cloudflare.com
+2. Navigate to **Access** > **Applications**
+3. Find the application for your dashboard hostname (e.g., `dash.yourdomain.com`)
+4. In the application settings, locate the **Application Audience (AUD) Tag** — it looks like a long hex string
+5. Copy the AUD tag and add it to your `config/workspace.env`:
+
+```bash
+CF_POLICY_AUD="your-application-audience-tag-here"
+```
+
+### Using Bearer Token (Non-Cloudflare Deployments)
+
+If you are not using Cloudflare Access, you can set a bearer token instead:
+
+```bash
+DASHBOARD_TOKEN="your-secret-token-here"
+```
+
+Then include it in requests:
+
+```bash
+curl -H "Authorization: Bearer your-secret-token-here" https://your-dashboard/api/status
+```

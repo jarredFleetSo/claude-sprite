@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from session import SessionStore
 from tokens import TokenStore
+from auth import check_auth
 from terminal_ws import ws_handshake, TerminalSession, get_terminal_info
 
 PORT = int(os.environ.get("WEBAPP_PORT", 8888))
@@ -253,7 +254,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(PUBLIC_DIR), **kwargs)
 
+    def _check_auth(self):
+        """Check request authorization; send 403 and return False if denied."""
+        allowed, info = check_auth(self)
+        if not allowed:
+            self._json_error(403, f"Forbidden: {info}")
+            return False
+        return True
+
     def do_GET(self):
+        if not self._check_auth():
+            return
         # Parse path and query string
         path = self.path.split("?")[0]
         query = {}
@@ -301,6 +312,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
+        if not self._check_auth():
+            return
         # POST /api/sessions/<name>/touch
         parts = self.path.strip("/").split("/")
         if len(parts) == 4 and parts[:2] == ["api", "sessions"] and parts[3] == "touch":
@@ -347,6 +360,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Not Found")
 
     def do_PUT(self):
+        if not self._check_auth():
+            return
         if self.path == "/api/settings/tokens":
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length).decode() if length else "{}"
@@ -370,6 +385,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Not Found")
 
     def do_DELETE(self):
+        if not self._check_auth():
+            return
         # DELETE /api/sprites/<name>
         parts = self.path.strip("/").split("/")
         if len(parts) == 3 and parts[:2] == ["api", "sprites"]:

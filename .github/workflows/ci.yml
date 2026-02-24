@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Shellcheck
+        run: |
+          shellcheck cli/cs cli/install.sh scripts/bootstrap.sh \
+            scripts/lib/*.sh scripts/modules/*.sh
+
+      - name: Bash syntax check
+        run: |
+          find . -name '*.sh' -not -path './.git/*' -print0 \
+            | xargs -0 bash -n
+          bash -n cli/cs
+
+      - name: Python syntax check
+        run: |
+          find . -name '*.py' -not -path './.git/*' -print0 \
+            | xargs -0 python3 -m py_compile
+
+      - name: Bootstrap dry-run
+        run: |
+          cp config/workspace.env.example config/workspace.env
+          sudo bash scripts/bootstrap.sh --dry-run
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: cli/cs
+          generate_release_notes: true

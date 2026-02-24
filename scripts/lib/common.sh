@@ -36,14 +36,17 @@ _timestamp() {
     date "+%Y-%m-%d %H:%M:%S"
 }
 
+# shellcheck disable=SC2059
 log_info() {
     printf "${_CLR_GREEN}[INFO]${_CLR_RESET}  ${_CLR_CYAN}%s${_CLR_RESET}  %s\n" "$(_timestamp)" "$*"
 }
 
+# shellcheck disable=SC2059
 log_warn() {
     printf "${_CLR_YELLOW}[WARN]${_CLR_RESET}  ${_CLR_CYAN}%s${_CLR_RESET}  %s\n" "$(_timestamp)" "$*" >&2
 }
 
+# shellcheck disable=SC2059
 log_error() {
     printf "${_CLR_RED}[ERROR]${_CLR_RESET} ${_CLR_CYAN}%s${_CLR_RESET}  %s\n" "$(_timestamp)" "$*" >&2
 }
