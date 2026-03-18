@@ -539,7 +539,7 @@ if [ "{port}" = "7681" ]; then
             sudo mv /tmp/ttyd /usr/local/bin/ttyd
         fi
         echo "Starting ttyd on port {port}..."
-        nohup ttyd -p {port} -W tmux attach-or-new -t workspace >/dev/null 2>&1 &
+        nohup ttyd -p {port} -W tmux new-session -A -s workspace >/dev/null 2>&1 &
         sleep 1
     fi
 fi
