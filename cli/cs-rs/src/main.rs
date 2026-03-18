@@ -507,9 +507,10 @@ fn cmd_share(port: u16, sprite: Option<&str>, config: &GlobalConfig) -> error::R
     output::dim("  Press ctrl-c to stop sharing.");
     eprintln!();
 
-    // Install cloudflared if missing, then run quick tunnel
+    // Install deps, start ttyd if needed, then run quick tunnel
     let script = format!(
         r##"
+# Install cloudflared if missing
 if ! command -v cloudflared >/dev/null 2>&1; then
     echo "Installing cloudflared..."
     arch=$(uname -m)
@@ -521,6 +522,28 @@ if ! command -v cloudflared >/dev/null 2>&1; then
     chmod +x /tmp/cloudflared
     sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
 fi
+
+# If sharing terminal port, ensure ttyd is running
+if [ "{port}" = "7681" ]; then
+    if ! ss -tlnp 2>/dev/null | grep -q ':{port} ' && ! netstat -tlnp 2>/dev/null | grep -q ':{port} '; then
+        # Install ttyd if missing
+        if ! command -v ttyd >/dev/null 2>&1; then
+            echo "Installing ttyd..."
+            arch=$(uname -m)
+            case "$arch" in
+                x86_64|amd64) arch="x86_64" ;;
+                aarch64|arm64) arch="aarch64" ;;
+            esac
+            curl -fsSL -o /tmp/ttyd "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.$arch"
+            chmod +x /tmp/ttyd
+            sudo mv /tmp/ttyd /usr/local/bin/ttyd
+        fi
+        echo "Starting ttyd on port {port}..."
+        nohup ttyd -p {port} -W tmux attach-or-new -t workspace >/dev/null 2>&1 &
+        sleep 1
+    fi
+fi
+
 cloudflared tunnel --url http://localhost:{port} 2>&1
 "##
     );
