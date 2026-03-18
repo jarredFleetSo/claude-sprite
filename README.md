@@ -11,29 +11,59 @@ cd cli && sudo bash install.sh
 cs setup
 ```
 
-## Usage
+## Use cases
+
+### Remote Claude (interactive)
+
+Sync your local project to a sprite and work with Claude remotely. Your API key, sessions, and project context carry over automatically.
 
 ```bash
-cs ready                  # sync, auth, attach — one command
-cs dispatch "do the thing" # fire-and-forget Claude task
-cs status                 # check progress
-cs logs                   # tail output
-cs attach                 # watch live
-cs abort                  # kill it
+cd ~/git/my-project
+cs ready                  # syncs files, pushes auth + context, attaches
+# Claude is ready — no onboarding, no login prompts
+
+cs ready                  # next time: re-syncs and re-attaches (remembers via .cs.toml)
 ```
 
-Sprite management:
+### Long-running scripts
+
+Fire off a Claude task or any command and walk away. Check back from your phone or another machine.
+
+```bash
+cs dispatch "refactor the auth module to use JWT tokens"
+cs status                 # running, 23 min elapsed
+cs logs                   # tail the output
+cs attach                 # watch live
+cs abort                  # kill it
+
+cs dispatch --resume      # resume last Claude session headless
+```
+
+### Run anything remotely
+
+Not just Claude — run builds, training jobs, data pipelines on a sprite with the same monitoring.
+
+```bash
+cs run "make train EPOCHS=100"
+cs run "python simulate.py --seed 42 --days 90"
+cs status                 # same status/logs/attach/abort commands work
+```
+
+### Mobile monitoring
+
+Check on running tasks from your phone via the web dashboard.
+
+```bash
+cs web                    # open dashboard in browser
+```
+
+### Sprite management
 
 ```bash
 cs list                   # all sprites with status
 cs create <name>
 cs start / stop <name>
 cs destroy <name>
-```
-
-File transfer:
-
-```bash
 cs sync                   # push local → sprite
 cs pull <remote> [local]  # pull files back
 ```
