@@ -194,6 +194,15 @@ pub enum Commands {
         sprite: Option<String>,
     },
 
+    /// Share a public URL to the sprite terminal (via cloudflared quick tunnel)
+    Share {
+        /// Port to share (default: 7681 for terminal)
+        #[arg(default_value = "7681")]
+        port: u16,
+        /// Sprite name
+        sprite: Option<String>,
+    },
+
     /// Open the dashboard in your browser
     Web {
         /// Port for the dashboard (default: 8888)

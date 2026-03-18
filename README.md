@@ -49,12 +49,14 @@ cs run "python simulate.py --seed 42 --days 90"
 cs status                 # same status/logs/attach/abort commands work
 ```
 
-### Mobile monitoring
+### Mobile access
 
-Check on running tasks from your phone via the web dashboard.
+Share a public URL to your sprite terminal — open it on your phone, tablet, or any browser.
 
 ```bash
-cs web                    # open dashboard in browser
+cs share                  # starts a cloudflared tunnel, prints a public URL
+cs share 8888             # share the dashboard instead of terminal
+cs share 8080             # share the editor
 ```
 
 ### Sprite management
@@ -90,6 +92,7 @@ cs ssh-keys [sprite]      sync SSH keys
 cs context push/pull      sync Claude sessions & settings
 cs shell-setup [sprite]   install starship, fzf, etc.
 cs setup                  config wizard
+cs share [port]           public URL via cloudflared tunnel
 cs proxy [ports]          forward remote ports
 cs url [sprite]           print access URLs
 cs web                    open dashboard

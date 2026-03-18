@@ -138,6 +138,7 @@ fn run(cli: Cli, config: &GlobalConfig) -> error::Result<()> {
             Commands::Exec { cmd } => cmd_exec(&cmd, config),
             Commands::Clone { url, sprite } => cmd_clone(&url, sprite.as_deref(), config),
             Commands::Pick => cmd_pick(config),
+            Commands::Share { port, sprite } => cmd_share(port, sprite.as_deref(), config),
             Commands::Proxy { ports } => cmd_proxy(ports.as_deref(), config),
             Commands::Url { sprite } => cmd_url(sprite.as_deref(), config),
             Commands::Web { port } => cmd_web(port),
@@ -483,6 +484,36 @@ fn cmd_pick(config: &GlobalConfig) -> error::Result<()> {
     let name = picker::pick_sprite(config)?;
     let client = sprite::SpriteClient::new(&name, &config.org, &config.tmux_session);
     attach::attach(&client)
+}
+
+fn cmd_share(port: u16, sprite: Option<&str>, config: &GlobalConfig) -> error::Result<()> {
+    sprite::SpriteClient::require_cli()?;
+    let client = resolve::resolve_sprite(sprite, config)?;
+
+    let service = match port {
+        7681 => "terminal",
+        8080 => "editor",
+        8888 => "dashboard",
+        _ => "service",
+    };
+
+    output::header(&format!("share → {} ({})", client.name, service));
+    output::boxline(&format!(
+        "Starting cloudflared tunnel on port {} ...",
+        style(port).cyan()
+    ));
+    output::footer();
+    output::dim("  The public URL will appear below. Share it to access from any device.");
+    output::dim("  Press ctrl-c to stop sharing.");
+    eprintln!();
+
+    // Run cloudflared quick tunnel on the sprite, streaming output to terminal
+    let script = format!(
+        "cloudflared tunnel --url http://localhost:{port} 2>&1"
+    );
+
+    // Use exec_tty so the user sees the cloudflared output live (including the URL)
+    client.exec_tty(&["bash", "-c", &script])
 }
 
 fn cmd_proxy(ports: Option<&str>, config: &GlobalConfig) -> error::Result<()> {
