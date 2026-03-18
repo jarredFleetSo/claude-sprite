@@ -511,10 +511,115 @@ if ! command -v ttyd >/dev/null 2>&1; then
     sudo mv /tmp/ttyd /usr/local/bin/ttyd
 fi
 
+# Write mobile-optimized CSS
+mkdir -p /tmp/cs-share
+cat > /tmp/cs-share/style.css << 'CSSEOF'
+/* Mobile-optimized terminal */
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #0f0f1a;
+    height: 100%;
+    overflow: hidden;
+    -webkit-text-size-adjust: none;
+    touch-action: manipulation;
+}
+
+/* Remove ttyd header/toolbar if present */
+#terminal-container, .terminal {
+    padding: 0 !important;
+}
+
+/* Viewport fills screen */
+.xterm {
+    padding: 8px 4px !important;
+    height: 100vh !important;
+}
+
+.xterm-viewport {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Smoother rendering */
+.xterm-screen canvas {
+    image-rendering: optimizeSpeed;
+}
+
+/* Selection styling */
+.xterm-selection div {
+    background: rgba(81, 101, 155, 0.4) !important;
+}
+
+/* Scrollbar thin on mobile */
+.xterm-viewport::-webkit-scrollbar {
+    width: 4px;
+}
+.xterm-viewport::-webkit-scrollbar-thumb {
+    background: rgba(192, 202, 245, 0.2);
+    border-radius: 2px;
+}
+
+/* Prevent zoom on double-tap */
+* {
+    touch-action: manipulation;
+}
+
+/* Status bar at top */
+#status-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 28px;
+    background: linear-gradient(180deg, #1a1b2e 0%, #0f0f1a 100%);
+    border-bottom: 1px solid rgba(192, 202, 245, 0.08);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 11px;
+    color: rgba(192, 202, 245, 0.4);
+    z-index: 100;
+    -webkit-user-select: none;
+    user-select: none;
+}
+#status-bar .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #9ece6a;
+    margin-right: 8px;
+    box-shadow: 0 0 4px rgba(158, 206, 106, 0.4);
+}
+CSSEOF
+
+# Write custom HTML override for viewport meta
+cat > /tmp/cs-share/override.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0f1a">
+<title>sprite terminal</title>
+</head>
+<body>
+</body>
+</html>
+HTMLEOF
+
 nohup ttyd -p 8080 -W \
-    -t fontSize=18 \
-    -t fontFamily="'Menlo, Monaco, Consolas, monospace'" \
-    -t 'theme={"background":"#1a1b26","foreground":"#c0caf5","cursor":"#c0caf5","selectionBackground":"#33467c"}' \
+    -t fontSize=16 \
+    -t fontFamily="'SF Mono, Menlo, Monaco, Cascadia Code, monospace'" \
+    -t lineHeight=1.3 \
+    -t letterSpacing=0 \
+    -t cursorBlink=true \
+    -t cursorStyle=bar \
+    -t scrollback=5000 \
+    -t 'theme={"background":"#0f0f1a","foreground":"#c0caf5","cursor":"#7aa2f7","cursorAccent":"#0f0f1a","selectionBackground":"#33467c","selectionForeground":"#c0caf5","black":"#15161e","red":"#f7768e","green":"#9ece6a","yellow":"#e0af68","blue":"#7aa2f7","magenta":"#bb9af7","cyan":"#7dcfff","white":"#a9b1d6","brightBlack":"#414868","brightRed":"#f7768e","brightGreen":"#9ece6a","brightYellow":"#e0af68","brightBlue":"#7aa2f7","brightMagenta":"#bb9af7","brightCyan":"#7dcfff","brightWhite":"#c0caf5"}' \
     tmux new-session -A -s workspace >/dev/null 2>&1 &
 sleep 1
 
