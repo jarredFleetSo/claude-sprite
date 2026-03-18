@@ -11,104 +11,114 @@ cd cli && sudo bash install.sh
 cs setup
 ```
 
-## Use cases
+## Workflows
 
-### Remote Claude (interactive)
+### 1. Interactive development
 
-Sync your local project to a sprite and work with Claude remotely. Your API key, sessions, and project context carry over automatically.
+Sync your project to a sprite and work with Claude remotely. API key, sessions, and context carry over automatically.
 
-```bash
-cd ~/git/my-project
-cs ready                  # syncs files, pushes auth + context, attaches
-# Claude is ready — no onboarding, no login prompts
-
-cs ready                  # next time: re-syncs and re-attaches (remembers via .cs.toml)
+```
+cs ready
 ```
 
-### Long-running scripts
+That's it. `cs ready` resolves your sprite from `.cs.toml`, syncs files, pushes auth and context, and attaches you to the tmux session. Claude is ready — no onboarding, no login prompts. Run it again to re-sync and re-attach.
 
-Fire off a Claude task or any command and walk away. Check back from your phone or another machine.
+First time? `cs ready my-sprite` creates the mapping. After that, just `cs ready` from the project directory.
 
-```bash
-cs dispatch "refactor the auth module to use JWT tokens"
-cs status                 # running, 23 min elapsed
-cs logs                   # tail the output
-cs attach                 # watch live
-cs abort                  # kill it
+### 2. Fire-and-forget tasks
 
-cs dispatch --resume      # resume last Claude session headless
+Dispatch a Claude prompt or any command to run on the sprite. Walk away — check back from anywhere.
+
+```
+cs dispatch "refactor the auth module to use JWT"
 ```
 
-### Run anything remotely
+Monitor from any machine:
 
-Not just Claude — run builds, training jobs, data pipelines on a sprite with the same monitoring.
+```
+cs status        check progress
+cs logs          tail output
+cs attach        watch live
+cs abort         kill it
+```
 
-```bash
+Resume where Claude left off:
+
+```
+cs dispatch --resume
+```
+
+### 3. Run anything remotely
+
+Not just Claude — builds, training, simulations, data pipelines. Same monitoring commands.
+
+```
 cs run "make train EPOCHS=100"
 cs run "python simulate.py --seed 42 --days 90"
-cs status                 # same status/logs/attach/abort commands work
+cs status
 ```
 
-### Mobile access
+### 4. Mobile access
 
-Share a public URL to your sprite terminal — open it on your phone, tablet, or any browser.
-
-```bash
-cs share                  # starts a cloudflared tunnel, prints a public URL
-cs share 8888             # share the dashboard instead of terminal
-cs share 8080             # share the editor
-```
-
-### Sprite management
-
-```bash
-cs list                   # all sprites with status
-cs create <name>
-cs start / stop <name>
-cs destroy <name>
-cs sync                   # push local → sprite
-cs pull <remote> [local]  # pull files back
-```
-
-### All commands
+Get a terminal on your phone. `cs share` starts a web terminal on the sprite and prints the URL — authenticated via Sprites, no public exposure.
 
 ```
-cs                        attach (default, picker if no mapping)
-cs ready [sprite]         create → auth → sync → context → attach
-cs sync [path] [sprite]   push files to sprite (git-aware, progress bar)
-cs pull <remote> [local]  pull files from sprite
-cs dispatch "<prompt>"    fire-and-forget Claude task
-cs dispatch --resume      resume last session headless
-cs run "<cmd>"            run any command on sprite
-cs status                 what's running?
-cs logs                   tail output
-cs attach                 connect to terminal
-cs abort                  kill running task
-cs list                   all sprites with status
-cs create / destroy       create or destroy a sprite
-cs start / stop           wake or checkpoint
-cs auth [sprite]          push API key
-cs ssh-keys [sprite]      sync SSH keys
-cs context push/pull      sync Claude sessions & settings
-cs shell-setup [sprite]   install starship, fzf, etc.
-cs setup                  config wizard
-cs share [port]           public URL via cloudflared tunnel
-cs proxy [ports]          forward remote ports
-cs url [sprite]           print access URLs
-cs web                    open dashboard
+cs share
 ```
 
-### Project auto-mapping
+Open the URL on any device. The terminal connects to the same tmux session as `cs attach` — same running processes, same state.
 
-`cs ready axiom` from `~/git/axiom` stores the mapping in `.cs.toml`. After that, all commands auto-resolve — no sprite name needed.
+### 5. Context sync
 
-## Dashboard
+Push and pull Claude sessions, history, and settings between local and remote. Path remapping is automatic.
 
-Mobile-friendly web UI with status monitoring, embedded terminal, sprite management, and token settings.
-
-```bash
-./claude-sprite           # start locally
 ```
+cs context push       sync sessions + history + CLAUDE.md to sprite
+cs context pull       pull sessions + history back
+```
+
+After a push, you get a `claude --resume <id>` command to pick up where you left off.
+
+## All commands
+
+```
+Daily workflow
+  cs                      attach (picker if no mapping)
+  cs ready [sprite]       create → auth → sync → context → attach
+  cs share                web terminal URL for any device
+
+File transfer
+  cs sync [path]          push files to sprite (git-aware, progress bar)
+  cs pull <remote> [local]  pull files from sprite
+
+Remote execution
+  cs dispatch "<prompt>"  fire-and-forget Claude task
+  cs dispatch --resume    resume last session
+  cs run "<cmd>"          run any command on sprite
+  cs status               what's running?
+  cs logs                 tail output
+  cs attach               connect to terminal
+  cs abort                kill running task
+
+Sprite management
+  cs list                 all sprites with status
+  cs create / destroy     create or destroy
+  cs start / stop         wake or checkpoint
+
+Setup & config
+  cs auth [sprite]        push API key
+  cs ssh-keys [sprite]    sync SSH keys
+  cs context push/pull    sync Claude sessions & settings
+  cs shell-setup [sprite] install starship, fzf, etc.
+  cs setup                config wizard
+  cs proxy [ports]        forward remote ports
+  cs url [sprite]         print access URLs
+  cs web                  open dashboard
+```
+
+## Project auto-mapping
+
+`cs ready my-sprite` from `~/git/my-project` stores the mapping in `.cs.toml`. After that, all commands auto-resolve — no sprite name needed.
 
 ## Project structure
 
