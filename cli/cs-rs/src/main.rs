@@ -497,106 +497,78 @@ fn cmd_share(port: u16, sprite: Option<&str>, config: &GlobalConfig) -> error::R
         _ => "service",
     };
 
-    output::header(&format!("share → {} ({})", client.name, service));
-    output::boxline(&format!(
-        "Starting tunnel on port {} ...",
-        style(port).cyan()
-    ));
-    output::footer();
+    output::info(&format!("Setting up {} on {} ...", service, client.name));
+
+    // Ensure ttyd is running on the sprite for terminal sharing
+    if port == 7681 {
+        let setup_script = r##"
+if ! ss -tlnp 2>/dev/null | grep -q ':7681 ' && ! netstat -tlnp 2>/dev/null | grep -q ':7681 '; then
+    if ! command -v ttyd >/dev/null 2>&1; then
+        echo "INSTALLING_TTYD"
+        arch=$(uname -m)
+        case "$arch" in
+            x86_64|amd64) arch="x86_64" ;;
+            aarch64|arm64) arch="aarch64" ;;
+        esac
+        curl -fsSL -o /tmp/ttyd "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.$arch"
+        chmod +x /tmp/ttyd
+        sudo mv /tmp/ttyd /usr/local/bin/ttyd
+    fi
+    nohup ttyd -p 7681 -W tmux new-session -A -s workspace >/dev/null 2>&1 &
+    sleep 1
+    echo "STARTED_TTYD"
+else
+    echo "TTYD_RUNNING"
+fi
+"##;
+        let result = client.exec(&["bash", "-c", setup_script])?;
+        for line in result.stdout.lines() {
+            match line.trim() {
+                "INSTALLING_TTYD" => output::info("Installing ttyd..."),
+                "STARTED_TTYD" => output::info("Started ttyd on port 7681"),
+                "TTYD_RUNNING" => output::info("ttyd already running"),
+                _ => {}
+            }
+        }
+    }
+
+    // Get the sprite URL
+    let mut cmd = std::process::Command::new("sprite");
+    cmd.arg("url").arg("-s").arg(&client.name);
+    if !client.org.is_empty() {
+        cmd.arg("-o").arg(&client.org);
+    }
+    let url_output = cmd.output()?;
+    let url_text = String::from_utf8_lossy(&url_output.stdout).to_string();
+
+    // Parse URL from "URL: https://..." line
+    let sprite_url = url_text
+        .lines()
+        .find_map(|l| l.strip_prefix("URL: ").or_else(|| l.strip_prefix("url: ")))
+        .map(|u| u.trim().to_string())
+        .unwrap_or_default();
+
+    if sprite_url.is_empty() {
+        return Err(CsError::user("Could not get sprite URL. Run: sprite url"));
+    }
+
+    // Build the full URL with port
+    let share_url = if port == 443 || port == 80 {
+        sprite_url.clone()
+    } else {
+        format!("{}:{}", sprite_url.trim_end_matches('/'), port)
+    };
+
     eprintln!();
-
-    // Install deps, start ttyd if needed, run cloudflared in background, return URL
-    let script = format!(
-        r##"
-# Install cloudflared if missing
-if ! command -v cloudflared >/dev/null 2>&1; then
-    echo "Installing cloudflared..."
-    arch=$(uname -m)
-    case "$arch" in
-        x86_64|amd64) arch="amd64" ;;
-        aarch64|arm64) arch="arm64" ;;
-    esac
-    curl -fsSL -o /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$arch"
-    chmod +x /tmp/cloudflared
-    sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
-fi
-
-# If sharing terminal port, ensure ttyd is running
-if [ "{port}" = "7681" ]; then
-    if ! ss -tlnp 2>/dev/null | grep -q ':{port} ' && ! netstat -tlnp 2>/dev/null | grep -q ':{port} '; then
-        if ! command -v ttyd >/dev/null 2>&1; then
-            echo "Installing ttyd..."
-            arch=$(uname -m)
-            case "$arch" in
-                x86_64|amd64) arch="x86_64" ;;
-                aarch64|arm64) arch="aarch64" ;;
-            esac
-            curl -fsSL -o /tmp/ttyd "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.$arch"
-            chmod +x /tmp/ttyd
-            sudo mv /tmp/ttyd /usr/local/bin/ttyd
-        fi
-        echo "Starting ttyd on port {port}..."
-        nohup ttyd -p {port} -W tmux new-session -A -s workspace >/dev/null 2>&1 &
-        sleep 1
-    fi
-fi
-
-# Kill any existing cloudflared tunnel on this port
-pkill -f "cloudflared tunnel.*localhost:{port}" 2>/dev/null || true
-sleep 0.5
-
-# Start cloudflared in background, capture URL from log
-logfile="/tmp/cs-share-{port}.log"
-nohup cloudflared tunnel --url http://localhost:{port} >"$logfile" 2>&1 &
-cf_pid=$!
-echo "$cf_pid" > "/tmp/cs-share-{port}.pid"
-
-# Wait for URL to appear in log (up to 15s)
-for i in $(seq 1 30); do
-    if grep -q 'trycloudflare.com' "$logfile" 2>/dev/null; then
-        url=$(grep -o 'https://[^ ]*trycloudflare.com' "$logfile" | head -1)
-        echo "SHARE_URL:$url"
-        echo "SHARE_PID:$cf_pid"
-        exit 0
-    fi
-    sleep 0.5
-done
-echo "ERROR: Timed out waiting for tunnel URL"
-cat "$logfile"
-exit 1
-"##
-    );
-
-    let result = client.exec(&["bash", "-c", &script])?;
-
-    let mut url = String::new();
-    for line in result.stdout.lines() {
-        if let Some(u) = line.strip_prefix("SHARE_URL:") {
-            url = u.to_string();
-        }
-        if !line.starts_with("SHARE_URL:") && !line.starts_with("SHARE_PID:") {
-            eprintln!("  {}", line);
-        }
-    }
-
-    if url.is_empty() {
-        return Err(CsError::user("Failed to start tunnel"));
-    }
-
-    output::header(&format!("shared → {}", client.name));
-    output::boxline(&format!("{}", style(&url).cyan().bold()));
+    output::header(&format!("share → {} ({})", client.name, service));
+    output::boxline_empty();
+    output::boxline(&format!("  {}", style(&share_url).cyan().bold()));
     output::boxline_empty();
     output::boxline(&format!(
-        "{}",
-        style("Open this URL on any device — phone, tablet, browser.").dim()
-    ));
-    output::boxline(&format!(
-        "{}",
-        style("The tunnel runs on the sprite and survives disconnection.").dim()
+        "  {}",
+        style("Open on any device. Authenticated via Sprites.").dim()
     ));
     output::footer();
-    eprintln!();
-    output::hint("stop sharing", &format!("cs exec -- kill $(cat /tmp/cs-share-{port}.pid)"));
     eprintln!();
 
     Ok(())

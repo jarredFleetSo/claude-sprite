@@ -194,7 +194,7 @@ pub enum Commands {
         sprite: Option<String>,
     },
 
-    /// Share a public URL to the sprite terminal (via cloudflared quick tunnel)
+    /// Share a URL to access the sprite from any device
     Share {
         /// Port to share (default: 7681 for terminal)
         #[arg(default_value = "7681")]
