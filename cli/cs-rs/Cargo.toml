@@ -5,7 +5,7 @@ edition = "2021"
 description = "Claude Sprite CLI — manage remote Claude Code environments"
 
 [[bin]]
-name = "cs2"
+name = "cs"
 path = "src/main.rs"
 
 [dependencies]

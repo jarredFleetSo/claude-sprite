@@ -213,7 +213,6 @@ claude-sprite/
 │   ├── cs-rs/                     # CLI tool (Rust)
 │   │   ├── Cargo.toml
 │   │   └── src/                   # 17 modules: sprite, sync, dispatch, context, etc.
-│   ├── cs                         # Legacy bash CLI (deprecated)
 │   └── install.sh                 # Build + install Rust binary
 ├── app/
 │   ├── server.py                  # Dashboard HTTP server (Python stdlib)

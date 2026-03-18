@@ -23,7 +23,7 @@ fi
 echo "Building cs (release)..."
 (cd "$CRATE_DIR" && cargo build --release)
 
-BINARY="${CRATE_DIR}/target/release/cs2"
+BINARY="${CRATE_DIR}/target/release/cs"
 if [[ ! -f "$BINARY" ]]; then
     echo "Error: build failed — binary not found at ${BINARY}" >&2
     exit 1
