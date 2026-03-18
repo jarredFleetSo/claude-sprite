@@ -138,7 +138,7 @@ fn run(cli: Cli, config: &GlobalConfig) -> error::Result<()> {
             Commands::Exec { cmd } => cmd_exec(&cmd, config),
             Commands::Clone { url, sprite } => cmd_clone(&url, sprite.as_deref(), config),
             Commands::Pick => cmd_pick(config),
-            Commands::Share { port, sprite } => cmd_share(port, sprite.as_deref(), config),
+            Commands::Share { sprite } => cmd_share(sprite.as_deref(), config),
             Commands::Proxy { ports } => cmd_proxy(ports.as_deref(), config),
             Commands::Url { sprite } => cmd_url(sprite.as_deref(), config),
             Commands::Web { port } => cmd_web(port),
@@ -486,49 +486,52 @@ fn cmd_pick(config: &GlobalConfig) -> error::Result<()> {
     attach::attach(&client)
 }
 
-fn cmd_share(port: u16, sprite: Option<&str>, config: &GlobalConfig) -> error::Result<()> {
+fn cmd_share(sprite: Option<&str>, config: &GlobalConfig) -> error::Result<()> {
     sprite::SpriteClient::require_cli()?;
     let client = resolve::resolve_sprite(sprite, config)?;
 
-    let service = match port {
-        7681 => "terminal",
-        8080 => "editor",
-        8888 => "dashboard",
-        _ => "service",
-    };
+    output::info(&format!("Setting up terminal on {} ...", client.name));
 
-    output::info(&format!("Setting up {} on {} ...", service, client.name));
+    // Start ttyd on port 8080 (sprite URL routes here)
+    let setup_script = r##"
+# Kill any existing ttyd
+pkill ttyd 2>/dev/null || true
+sleep 0.5
 
-    // Ensure ttyd is running on the sprite for terminal sharing
-    if port == 7681 {
-        let setup_script = r##"
-if ! ss -tlnp 2>/dev/null | grep -q ':7681 ' && ! netstat -tlnp 2>/dev/null | grep -q ':7681 '; then
-    if ! command -v ttyd >/dev/null 2>&1; then
-        echo "INSTALLING_TTYD"
-        arch=$(uname -m)
-        case "$arch" in
-            x86_64|amd64) arch="x86_64" ;;
-            aarch64|arm64) arch="aarch64" ;;
-        esac
-        curl -fsSL -o /tmp/ttyd "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.$arch"
-        chmod +x /tmp/ttyd
-        sudo mv /tmp/ttyd /usr/local/bin/ttyd
-    fi
-    nohup ttyd -p 7681 -W tmux new-session -A -s workspace >/dev/null 2>&1 &
-    sleep 1
-    echo "STARTED_TTYD"
+# Install ttyd if missing
+if ! command -v ttyd >/dev/null 2>&1; then
+    echo "INSTALLING_TTYD"
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64|amd64) arch="x86_64" ;;
+        aarch64|arm64) arch="aarch64" ;;
+    esac
+    curl -fsSL -o /tmp/ttyd "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.$arch"
+    chmod +x /tmp/ttyd
+    sudo mv /tmp/ttyd /usr/local/bin/ttyd
+fi
+
+nohup ttyd -p 8080 -W \
+    -t fontSize=18 \
+    -t fontFamily="'Menlo, Monaco, Consolas, monospace'" \
+    -t 'theme={"background":"#1a1b26","foreground":"#c0caf5","cursor":"#c0caf5","selectionBackground":"#33467c"}' \
+    tmux new-session -A -s workspace >/dev/null 2>&1 &
+sleep 1
+
+if ss -tlnp 2>/dev/null | grep -q ':8080 '; then
+    echo "READY"
 else
-    echo "TTYD_RUNNING"
+    echo "FAILED"
 fi
 "##;
-        let result = client.exec(&["bash", "-c", setup_script])?;
-        for line in result.stdout.lines() {
-            match line.trim() {
-                "INSTALLING_TTYD" => output::info("Installing ttyd..."),
-                "STARTED_TTYD" => output::info("Started ttyd on port 7681"),
-                "TTYD_RUNNING" => output::info("ttyd already running"),
-                _ => {}
-            }
+
+    let result = client.exec(&["bash", "-c", setup_script])?;
+    for line in result.stdout.lines() {
+        match line.trim() {
+            "INSTALLING_TTYD" => output::info("Installing ttyd..."),
+            "READY" => {}
+            "FAILED" => return Err(CsError::user("Failed to start ttyd")),
+            _ => {}
         }
     }
 
@@ -541,7 +544,6 @@ fi
     let url_output = cmd.output()?;
     let url_text = String::from_utf8_lossy(&url_output.stdout).to_string();
 
-    // Parse URL from "URL: https://..." line
     let sprite_url = url_text
         .lines()
         .find_map(|l| l.strip_prefix("URL: ").or_else(|| l.strip_prefix("url: ")))
@@ -552,23 +554,17 @@ fi
         return Err(CsError::user("Could not get sprite URL. Run: sprite url"));
     }
 
-    // Build the full URL with port
-    let share_url = if port == 443 || port == 80 {
-        sprite_url.clone()
-    } else {
-        format!("{}:{}", sprite_url.trim_end_matches('/'), port)
-    };
-
     eprintln!();
-    output::header(&format!("share → {} ({})", client.name, service));
+    output::header(&format!("share → {}", client.name));
     output::boxline_empty();
-    output::boxline(&format!("  {}", style(&share_url).cyan().bold()));
+    output::boxline(&format!("  {}", style(&sprite_url).cyan().bold()));
     output::boxline_empty();
     output::boxline(&format!(
         "  {}",
-        style("Open on any device. Authenticated via Sprites.").dim()
+        style("Open on any device. Auth via Sprites login.").dim()
     ));
     output::footer();
+    output::hint("stop", "cs exec -- pkill ttyd");
     eprintln!();
 
     Ok(())

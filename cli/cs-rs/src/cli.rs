@@ -194,11 +194,8 @@ pub enum Commands {
         sprite: Option<String>,
     },
 
-    /// Share a URL to access the sprite from any device
+    /// Share a URL to access the sprite terminal from any device
     Share {
-        /// Port to share (default: 7681 for terminal)
-        #[arg(default_value = "7681")]
-        port: u16,
         /// Sprite name
         sprite: Option<String>,
     },
