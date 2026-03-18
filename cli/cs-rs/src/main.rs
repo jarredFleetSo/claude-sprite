@@ -507,9 +507,23 @@ fn cmd_share(port: u16, sprite: Option<&str>, config: &GlobalConfig) -> error::R
     output::dim("  Press ctrl-c to stop sharing.");
     eprintln!();
 
-    // Run cloudflared quick tunnel on the sprite, streaming output to terminal
+    // Install cloudflared if missing, then run quick tunnel
     let script = format!(
-        "cloudflared tunnel --url http://localhost:{port} 2>&1"
+        r##"
+if ! command -v cloudflared >/dev/null 2>&1; then
+    echo "Installing cloudflared..."
+    if command -v apt-get >/dev/null 2>&1; then
+        curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+        echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
+        sudo apt-get update -qq && sudo apt-get install -y -qq cloudflared
+    else
+        curl -fsSL -o /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+        chmod +x /tmp/cloudflared
+        sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
+    fi
+fi
+cloudflared tunnel --url http://localhost:{port} 2>&1
+"##
     );
 
     // Use exec_tty so the user sees the cloudflared output live (including the URL)
