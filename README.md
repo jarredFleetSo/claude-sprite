@@ -72,57 +72,90 @@ claude                   # run Claude Code
 
 ## `cs` CLI
 
-The `cs` CLI gives you one-command access to your remote workspace from your Mac.
+The `cs` CLI gives you one-command access to your remote workspace. Built in Rust — no python3 dependency, no shell quoting bugs, progress bars during sync.
 
 ### Install
 
-```bash
-cd cli && sudo bash install.sh
-cs setup  # first-time: pick your Sprite and org
-```
-
-### Usage
+Requires [Rust](https://rustup.rs) and the [sprite CLI](https://sprites.dev).
 
 ```bash
-cs                       # attach to your workspace (picker if no default)
-cs list                  # list all sprites with status
-cs status                # check health, tmux sessions, services
-cs start                 # wake a sleeping sprite
-cs stop                  # checkpoint and idle
-cs attach <name>         # wake + attach to a specific sprite
+cd cli && sudo bash install.sh   # builds from source, installs to /usr/local/bin/cs
+cs setup                         # first-time: pick your Sprite and org
 ```
 
-**File operations:**
+### Core workflows
+
+**1. Remote Claude (interactive)** — the primary use case:
 
 ```bash
-cs sync . <name>         # push local directory to sprite (git-aware)
-cs pull <path> <dest>    # pull files from sprite to local
-cs clone <url> <name>    # git clone directly on the sprite
-cs cp <src> <dest>       # copy files (prefix remote paths with :)
-cs exec <cmd...>         # run a command on the sprite
+cd ~/git/axiom
+cs ready              # auto-maps to sprite, syncs, auth, context, attaches
+# type 'c' → Claude is ready, no onboarding, API key configured
+
+cs ready              # next time: re-syncs, re-attaches (remembers sprite via .cs.toml)
 ```
 
-**Context sync** — push/pull Claude Code sessions between local and remote so you can `--resume` on either side:
+**2. Fire-and-forget dispatch:**
 
 ```bash
-cs context push <name>   # push Claude sessions, history, and settings to sprite
-cs context pull <name>   # pull Claude sessions, history, and settings from sprite
+cs dispatch "refactor the auth module to use JWT"
+cs status             # running, 23 min elapsed
+cs logs               # tail output
+cs attach             # watch live
+cs abort              # kill it
+
+cs dispatch --resume  # resume last Claude session headless
+cs run "make train"   # run any command (not Claude-wrapped), same monitoring
 ```
 
-Session transcripts, project memory, history entries, `.claude/` settings, and `CLAUDE.md` are all synced with automatic path remapping. After a push, you get a ready-to-copy `claude --resume <id>` command.
-
-**Setup and config:**
+**3. Sprite management:**
 
 ```bash
-cs auth <name>           # set Claude Code API key on the sprite
-cs ssh-keys <name>       # sync SSH keys for git
-cs shell-setup <name>    # install starship, fzf, eza, bat, zsh plugins
-cs create <name>         # create a new sprite
-cs destroy <name>        # destroy a sprite
-cs proxy [ports]         # proxy remote ports to localhost
-cs url <name>            # print access URLs
-cs web                   # open the dashboard in your browser
+cs                    # attach (picker if no project mapping)
+cs list               # all sprites with status
+cs create <name>      # create sprite
+cs destroy <name>     # destroy sprite
+cs start / stop       # wake / checkpoint
 ```
+
+### All commands
+
+```
+cs                        attach to workspace (default, picker if no mapping)
+cs ready [sprite]         THE command: create → auth → sync → context → attach
+cs sync [path] [sprite]   push local directory to sprite (git-aware, progress bar)
+cs pull <remote> [local]  pull files/artifacts from sprite
+
+cs dispatch "<prompt>"    fire-and-forget Claude task
+cs dispatch --resume      resume last session headless
+cs run "<cmd>"            run any command in tmux on sprite
+cs status                 what's running? (dispatch, run, or nothing)
+cs logs                   tail output of whatever's running
+cs attach                 connect to sprite terminal
+cs abort                  kill the running dispatch/run
+
+cs list                   all sprites with status
+cs create [name]          create a new sprite
+cs destroy [name]         destroy a sprite
+cs start / stop [name]    wake / checkpoint
+
+cs auth [sprite]          push API key + bypass onboarding
+cs ssh-keys [sprite]      sync SSH keys for git
+cs context push/pull      push/pull Claude sessions, history, settings
+cs shell-setup [sprite]   install starship, fzf, eza, bat, zsh plugins
+cs setup                  first-time config wizard
+cs exec <cmd...>          run a command on the sprite
+cs clone <url> [sprite]   git clone on sprite
+cs proxy [ports]          proxy remote ports to localhost
+cs url [sprite]           print access URLs
+cs web                    open the dashboard
+```
+
+### Project auto-mapping
+
+When you run `cs ready axiom` from `~/git/axiom`, it stores the mapping in `.cs.toml` at the project root. After that, all commands auto-resolve — no need to specify the sprite name.
+
+Context sync includes session transcripts, project memory, history entries, `.claude/` settings, and `CLAUDE.md` with automatic path remapping. After a push, you get a ready-to-copy `claude --resume <id>` command.
 
 ## Dashboard
 
@@ -177,8 +210,11 @@ All configuration lives in a single file: `config/workspace.env` (git-ignored).
 claude-sprite/
 ├── claude-sprite                  # Launch dashboard locally
 ├── cli/
-│   ├── cs                         # CLI tool for remote workspace access
-│   └── install.sh                 # CLI installer
+│   ├── cs-rs/                     # CLI tool (Rust)
+│   │   ├── Cargo.toml
+│   │   └── src/                   # 17 modules: sprite, sync, dispatch, context, etc.
+│   ├── cs                         # Legacy bash CLI (deprecated)
+│   └── install.sh                 # Build + install Rust binary
 ├── app/
 │   ├── server.py                  # Dashboard HTTP server (Python stdlib)
 │   ├── session.py                 # Session state persistence

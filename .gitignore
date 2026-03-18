@@ -23,6 +23,12 @@ node_modules/
 # Runtime state
 data/
 
+# Rust
+target/
+
+# Per-project sprite mapping
+.cs.toml
+
 # Logs
 *.log
 /var/log/workspace-bootstrap.log
