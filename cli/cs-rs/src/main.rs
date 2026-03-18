@@ -512,15 +512,14 @@ fn cmd_share(port: u16, sprite: Option<&str>, config: &GlobalConfig) -> error::R
         r##"
 if ! command -v cloudflared >/dev/null 2>&1; then
     echo "Installing cloudflared..."
-    if command -v apt-get >/dev/null 2>&1; then
-        curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-        echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
-        sudo apt-get update -qq && sudo apt-get install -y -qq cloudflared
-    else
-        curl -fsSL -o /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-        chmod +x /tmp/cloudflared
-        sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
-    fi
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64|amd64) arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+    esac
+    curl -fsSL -o /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$arch"
+    chmod +x /tmp/cloudflared
+    sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
 fi
 cloudflared tunnel --url http://localhost:{port} 2>&1
 "##
