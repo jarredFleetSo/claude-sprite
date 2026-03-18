@@ -499,15 +499,13 @@ fn cmd_share(port: u16, sprite: Option<&str>, config: &GlobalConfig) -> error::R
 
     output::header(&format!("share → {} ({})", client.name, service));
     output::boxline(&format!(
-        "Starting cloudflared tunnel on port {} ...",
+        "Starting tunnel on port {} ...",
         style(port).cyan()
     ));
     output::footer();
-    output::dim("  The public URL will appear below. Share it to access from any device.");
-    output::dim("  Press ctrl-c to stop sharing.");
     eprintln!();
 
-    // Install deps, start ttyd if needed, then run quick tunnel
+    // Install deps, start ttyd if needed, run cloudflared in background, return URL
     let script = format!(
         r##"
 # Install cloudflared if missing
@@ -526,7 +524,6 @@ fi
 # If sharing terminal port, ensure ttyd is running
 if [ "{port}" = "7681" ]; then
     if ! ss -tlnp 2>/dev/null | grep -q ':{port} ' && ! netstat -tlnp 2>/dev/null | grep -q ':{port} '; then
-        # Install ttyd if missing
         if ! command -v ttyd >/dev/null 2>&1; then
             echo "Installing ttyd..."
             arch=$(uname -m)
@@ -544,12 +541,65 @@ if [ "{port}" = "7681" ]; then
     fi
 fi
 
-cloudflared tunnel --url http://localhost:{port} 2>&1
+# Kill any existing cloudflared tunnel on this port
+pkill -f "cloudflared tunnel.*localhost:{port}" 2>/dev/null || true
+sleep 0.5
+
+# Start cloudflared in background, capture URL from log
+logfile="/tmp/cs-share-{port}.log"
+nohup cloudflared tunnel --url http://localhost:{port} >"$logfile" 2>&1 &
+cf_pid=$!
+echo "$cf_pid" > "/tmp/cs-share-{port}.pid"
+
+# Wait for URL to appear in log (up to 15s)
+for i in $(seq 1 30); do
+    if grep -q 'trycloudflare.com' "$logfile" 2>/dev/null; then
+        url=$(grep -o 'https://[^ ]*trycloudflare.com' "$logfile" | head -1)
+        echo "SHARE_URL:$url"
+        echo "SHARE_PID:$cf_pid"
+        exit 0
+    fi
+    sleep 0.5
+done
+echo "ERROR: Timed out waiting for tunnel URL"
+cat "$logfile"
+exit 1
 "##
     );
 
-    // Use exec_tty so the user sees the cloudflared output live (including the URL)
-    client.exec_tty(&["bash", "-c", &script])
+    let result = client.exec(&["bash", "-c", &script])?;
+
+    let mut url = String::new();
+    for line in result.stdout.lines() {
+        if let Some(u) = line.strip_prefix("SHARE_URL:") {
+            url = u.to_string();
+        }
+        if !line.starts_with("SHARE_URL:") && !line.starts_with("SHARE_PID:") {
+            eprintln!("  {}", line);
+        }
+    }
+
+    if url.is_empty() {
+        return Err(CsError::user("Failed to start tunnel"));
+    }
+
+    output::header(&format!("shared → {}", client.name));
+    output::boxline(&format!("{}", style(&url).cyan().bold()));
+    output::boxline_empty();
+    output::boxline(&format!(
+        "{}",
+        style("Open this URL on any device — phone, tablet, browser.").dim()
+    ));
+    output::boxline(&format!(
+        "{}",
+        style("The tunnel runs on the sprite and survives disconnection.").dim()
+    ));
+    output::footer();
+    eprintln!();
+    output::hint("stop sharing", &format!("cs exec -- kill $(cat /tmp/cs-share-{port}.pid)"));
+    eprintln!();
+
+    Ok(())
 }
 
 fn cmd_proxy(ports: Option<&str>, config: &GlobalConfig) -> error::Result<()> {
