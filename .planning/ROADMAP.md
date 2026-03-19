@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can start a stopped sprite, stop a running sprite, and destroy a sprite (with confirmation prompt) entirely from the UI
   4. User can create a new sprite from the dashboard and see it appear in the sprite list
   5. Config entered during setup persists across app restarts and pre-fills from existing cs config if present
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] 01-01: Electron + electron-vite + React TypeScript scaffold with IPC skeleton (contextBridge, sandboxed preload, PATH resolution)
