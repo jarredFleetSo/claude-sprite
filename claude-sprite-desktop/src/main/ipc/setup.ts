@@ -25,6 +25,10 @@ export function registerSetupHandlers(_win: BrowserWindow): void {
           // sprite login writes token to ~/.sprites/ keyring
           // Reload config to pick up the new token
           const config = await loadConfig()
+          // Persist token to electron-store so it survives across restarts
+          if (config?.spriteToken) {
+            await saveConfig({ spriteToken: config.spriteToken })
+          }
           resolve({ success: true, config })
         } else {
           resolve({ success: false, error: `sprite login exited ${code}` })
