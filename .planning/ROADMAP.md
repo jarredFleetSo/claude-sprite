@@ -47,12 +47,12 @@ Plans:
   3. User can abort a running dispatch from the UI and see the process stop on the sprite
   4. User receives an OS notification when a dispatch finishes or fails, even if the app is in the background
   5. User can push local files to a sprite and pull files from a sprite, with a visible progress indicator for both operations
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: CLI Bridge (streaming child_process.spawn wrapper, IPC channel multiplexing by sprite, cleanup on unmount)
-- [ ] 02-02: Dispatch panel (prompt field, launch, live log streaming, abort, status indicator, OS notification)
-- [ ] 02-03: File sync UI (push/pull with progress, auto-sync before dispatch toggle)
+- [ ] 02-01-PLAN.md — IPC backend: dispatch and sync handlers with per-sprite channel namespacing, cs CLI bridge, preload API, unit tests
+- [ ] 02-02-PLAN.md — Dispatch panel UI: useDispatch hook, LogViewer component, DispatchPanel modal with prompt/abort/status
+- [ ] 02-03-PLAN.md — File sync UI: useSync hook, SyncProgress component, push/pull on SpriteCard, auto-sync toggle
 
 ### Phase 3: Embedded Terminal
 **Goal**: Users can open a shell on any running sprite directly inside the app without switching to a separate terminal or browser tab.
