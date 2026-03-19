@@ -13,13 +13,9 @@ async function provisionSprite(
   // Push Anthropic API key if we have one
   if (config?.anthropicApiKey) {
     sendProgress('Pushing API key...')
-    const script = `
-echo "export ANTHROPIC_API_KEY=\\"${config.anthropicApiKey}\\"" > ~/.claude_env
-chmod 600 ~/.claude_env
-grep -qF '.claude_env' ~/.bashrc 2>/dev/null || echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.bashrc
-grep -qF '.claude_env' ~/.profile 2>/dev/null || echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.profile
-echo "API key configured"
-`
+    // Base64 encode the key to avoid shell escaping issues
+    const keyB64 = Buffer.from(config.anthropicApiKey).toString('base64')
+    const script = `KEY=$(echo '${keyB64}' | base64 -d) && echo "export ANTHROPIC_API_KEY=\\"$KEY\\"" > ~/.claude_env && chmod 600 ~/.claude_env && grep -qF '.claude_env' ~/.bashrc 2>/dev/null || echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.bashrc && grep -qF '.claude_env' ~/.profile 2>/dev/null || echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.profile && echo "API key configured"`
     await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', script], sendProgress)
   }
 
@@ -71,7 +67,7 @@ export function registerSpriteHandlers(win: BrowserWindow): void {
     switch (action) {
       case 'start':
         // No 'sprite start' command -- wake via first exec
-        args.push('-o', org, '-s', sprite, 'exec', 'echo', 'waking')
+        args.push('-o', org, '-s', sprite, 'exec', '--', 'echo', 'waking')
         break
       case 'stop':
         // No 'sprite stop' — use checkpoint create to suspend
