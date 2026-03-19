@@ -8,6 +8,7 @@ interface AppConfig {
   anthropicApiKey: string
   theme?: 'light' | 'dark' | 'system'
   autoSyncBeforeDispatch?: boolean
+  spriteProjects?: Record<string, string>
 }
 
 let storeInstance: any = null

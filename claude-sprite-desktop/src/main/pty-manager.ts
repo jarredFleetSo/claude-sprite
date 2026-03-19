@@ -29,7 +29,8 @@ export function openSession(
   _cols: number,
   _rows: number,
   onData: (data: string) => void,
-  onExit: (code: number) => void
+  onExit: (code: number) => void,
+  projectDir?: string
 ): void {
   const existing = sessions.get(spriteName)
   if (existing) {
@@ -38,14 +39,14 @@ export function openSession(
   }
 
   const env = getEnvWithPath()
-  console.log('[pty-manager] Spawning sprite exec --tty for', spriteName)
+  const dirFlag = projectDir ? `--dir ${projectDir}` : ''
+  console.log('[pty-manager] Spawning sprite exec --tty for', spriteName, dirFlag ? `in ${projectDir}` : '')
 
-  const proc = spawn('sprite', [
-    '-o', spriteOrg,
-    '-s', spriteName,
-    'exec', '--tty', '--',
-    '/bin/bash',
-  ], {
+  const args = ['-o', spriteOrg, '-s', spriteName, 'exec', '--tty']
+  if (projectDir) args.push('--dir', projectDir)
+  args.push('--', '/bin/bash')
+
+  const proc = spawn('sprite', args, {
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
   })

@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { spawn } from 'child_process'
 import { loadConfig, saveConfig } from '../config-store'
 
@@ -9,6 +9,16 @@ export function registerSetupHandlers(_win: BrowserWindow): void {
 
   ipcMain.handle('config:save', async (_e, cfg: Record<string, unknown>) => {
     await saveConfig(cfg as any)
+  })
+
+  // Folder picker for project directory
+  ipcMain.handle('dialog:pick-folder', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select project directory',
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
   })
 
   // Path A: Browser OAuth per user decision in CONTEXT.md

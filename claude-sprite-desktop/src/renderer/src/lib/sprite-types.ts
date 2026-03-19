@@ -29,6 +29,8 @@ export interface AppConfig {
   anthropicApiKey: string
   theme?: 'light' | 'dark' | 'system'
   autoSyncBeforeDispatch?: boolean
+  // Per-sprite project directory mappings (spriteName → local path)
+  spriteProjects?: Record<string, string>
 }
 
 // Status display mapping
@@ -67,6 +69,9 @@ export interface SpriteAPI {
   lifecycle: (sprite: string, org: string, action: 'start' | 'stop' | 'destroy' | 'create') => Promise<{ success: boolean; error?: string }>
   runSpriteLogin: () => Promise<{ success: boolean; error?: string }>
   onLifecycleProgress: (cb: (msg: string) => void) => () => void
+
+  // Folder picker
+  pickFolder: () => Promise<string | null>
 
   // Dispatch
   dispatch: (sprite: string, prompt: string, noSync?: boolean) => Promise<DispatchResult>

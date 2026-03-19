@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('spriteAPI', {
     return () => ipcRenderer.removeListener(`sync:done:${sprite}`, handler)
   },
 
+  // Folder picker
+  pickFolder: () => ipcRenderer.invoke('dialog:pick-folder'),
+
   // Terminal
   terminalOpen: (sprite: string, org: string, cols: number, rows: number) =>
     ipcRenderer.invoke('terminal:open', { sprite, org, cols, rows }),
