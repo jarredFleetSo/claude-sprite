@@ -10,6 +10,10 @@ interface UIState {
   setShowDestroyModal: (show: boolean) => void
   destroyTarget: SpriteInfo | null
   setDestroyTarget: (sprite: SpriteInfo | null) => void
+  showDispatchPanel: boolean
+  setShowDispatchPanel: (show: boolean) => void
+  dispatchTarget: SpriteInfo | null
+  setDispatchTarget: (sprite: SpriteInfo | null) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -21,4 +25,8 @@ export const useUIStore = create<UIState>((set) => ({
   setShowDestroyModal: (show) => set({ showDestroyModal: show }),
   destroyTarget: null,
   setDestroyTarget: (sprite) => set({ destroyTarget: sprite }),
+  showDispatchPanel: false,
+  setShowDispatchPanel: (show) => set({ showDispatchPanel: show }),
+  dispatchTarget: null,
+  setDispatchTarget: (sprite) => set({ dispatchTarget: sprite }),
 }))

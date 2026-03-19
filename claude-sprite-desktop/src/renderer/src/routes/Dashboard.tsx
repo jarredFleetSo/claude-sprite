@@ -5,6 +5,7 @@ import { SpriteCard } from '../components/SpriteCard/SpriteCard'
 import { EmptyState } from '../components/EmptyState'
 import { CreateSpriteModal } from '../components/modals/CreateSpriteModal'
 import { DestroyConfirmModal } from '../components/modals/DestroyConfirmModal'
+import { DispatchPanel } from '../components/DispatchPanel/DispatchPanel'
 import { useSprites } from '../hooks/useSprites'
 import { useUIStore } from '../store/ui'
 
@@ -76,6 +77,7 @@ export function Dashboard() {
       {/* Modals */}
       <CreateSpriteModal />
       <DestroyConfirmModal />
+      <DispatchPanel />
     </div>
   )
 }

@@ -17,7 +17,7 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [progressMsg, setProgressMsg] = useState<string>('')
   const lifecycle = useSpriteLifecycle()
-  const { setDestroyTarget, setShowDestroyModal } = useUIStore()
+  const { setDestroyTarget, setShowDestroyModal, setDispatchTarget, setShowDispatchPanel } = useUIStore()
   const category = categorizeStatus(sprite.status)
 
   useEffect(() => {
@@ -112,8 +112,10 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs"
-            disabled
-            title="Coming in Phase 3"
+            onClick={() => {
+              setDispatchTarget(sprite)
+              setShowDispatchPanel(true)
+            }}
           >
             <Zap className="h-3 w-3 mr-1" />
             Dispatch
