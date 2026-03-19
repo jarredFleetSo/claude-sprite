@@ -40,9 +40,8 @@ export function categorizeStatus(status: string): StatusCategory {
 }
 
 // IPC API shape exposed via contextBridge
-// NOTE: No listSprites method -- sprite list is fetched directly from renderer
-// via fetch('https://api.sprites.dev/v1/sprites') in useSprites hook.
 export interface SpriteAPI {
+  listSprites: () => Promise<SpriteInfo[]>
   loadConfig: () => Promise<(AppConfig & { autoImported?: boolean }) | null>
   saveConfig: (cfg: Partial<AppConfig>) => Promise<void>
   lifecycle: (sprite: string, org: string, action: 'start' | 'stop' | 'destroy' | 'create') => Promise<{ success: boolean; error?: string }>

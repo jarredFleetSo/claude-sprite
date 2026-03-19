@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('spriteAPI', {
+  listSprites: () => ipcRenderer.invoke('sprite:list'),
   loadConfig: () => ipcRenderer.invoke('config:load'),
   saveConfig: (cfg: Record<string, unknown>) => ipcRenderer.invoke('config:save', cfg),
   lifecycle: (sprite: string, org: string, action: string) =>

@@ -5,14 +5,8 @@ export function useSprites() {
   return useQuery({
     queryKey: ['sprites'],
     queryFn: async (): Promise<SpriteInfo[]> => {
-      const config = await window.spriteAPI.loadConfig()
-      if (!config?.spriteToken) return []
-      const res = await fetch('https://api.sprites.dev/v1/sprites', {
-        headers: { Authorization: `Bearer ${config.spriteToken}` },
-      })
-      if (!res.ok) throw new Error(`Sprite API ${res.status}`)
-      const data = await res.json()
-      return Array.isArray(data) ? data : (data.sprites ?? [])
+      // Fetch via main process IPC to avoid CORS issues
+      return window.spriteAPI.listSprites()
     },
     refetchInterval: 30_000,
     refetchIntervalInBackground: true,
