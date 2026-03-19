@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ThemeProvider } from 'next-themes'
 import { Toaster } from '@/components/ui/sonner'
 import { useConfig } from './hooks/useConfig'
 import SetupWizard from './routes/SetupWizard'
@@ -31,10 +32,12 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AppContent />
-      <Toaster />
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <QueryClientProvider client={queryClient}>
+        <AppContent />
+        <Toaster />
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
 
