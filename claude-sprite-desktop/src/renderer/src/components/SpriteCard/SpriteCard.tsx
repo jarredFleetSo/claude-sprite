@@ -18,7 +18,7 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [progressMsg, setProgressMsg] = useState<string>('')
   const lifecycle = useSpriteLifecycle()
-  const { setDestroyTarget, setShowDestroyModal, setDispatchTarget, setShowDispatchPanel } = useUIStore()
+  const { setDestroyTarget, setShowDestroyModal, setDispatchTarget, setShowDispatchPanel, addTerminalTab } = useUIStore()
   const category = categorizeStatus(sprite.status)
 
   useEffect(() => {
@@ -103,8 +103,9 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs"
-            disabled
-            title="Coming in Phase 2"
+            disabled={category !== 'running' || isInProgress}
+            title={category !== 'running' ? 'Start sprite to open terminal' : undefined}
+            onClick={() => addTerminalTab(sprite)}
           >
             <Terminal className="h-3 w-3 mr-1" />
             Terminal

@@ -6,6 +6,7 @@ import { EmptyState } from '../components/EmptyState'
 import { CreateSpriteModal } from '../components/modals/CreateSpriteModal'
 import { DestroyConfirmModal } from '../components/modals/DestroyConfirmModal'
 import { DispatchPanel } from '../components/DispatchPanel/DispatchPanel'
+import { TerminalPanel } from '../components/TerminalPanel/TerminalPanel'
 import { useSprites } from '../hooks/useSprites'
 import { useUIStore } from '../store/ui'
 
@@ -32,6 +33,7 @@ function SkeletonCard() {
 export function Dashboard() {
   const { data: sprites, isLoading, error, refetch } = useSprites()
   const setShowCreateModal = useUIStore((s) => s.setShowCreateModal)
+  const showTerminalPanel = useUIStore((s) => s.showTerminalPanel)
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -55,21 +57,31 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Content */}
-      <main className="flex-1 p-6">
-        {isLoading && !sprites ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
-        ) : sprites && sprites.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(sprites ?? []).map((sprite) => (
-              <SpriteCard key={sprite.id} sprite={sprite} />
-            ))}
+      {/* Content — flex row splits 50/50 when terminal panel is open */}
+      <main className="flex-1 flex overflow-hidden">
+        {/* Sprite cards — full width when panel closed, left half when open */}
+        <div className={showTerminalPanel ? 'w-1/2 overflow-y-auto p-6' : 'flex-1 overflow-y-auto p-6'}>
+          {isLoading && !sprites ? (
+            <div className={`grid gap-4 ${showTerminalPanel ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          ) : sprites && sprites.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className={`grid gap-4 ${showTerminalPanel ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+              {(sprites ?? []).map((sprite) => (
+                <SpriteCard key={sprite.id} sprite={sprite} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Terminal panel — right half, conditionally shown */}
+        {showTerminalPanel && (
+          <div className="w-1/2 border-l border-border flex flex-col">
+            <TerminalPanel />
           </div>
         )}
       </main>
