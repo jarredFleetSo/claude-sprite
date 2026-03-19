@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: "Completed 01-00-PLAN.md"
-last_updated: "2026-03-19T15:23:01Z"
+status: unknown
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-19T15:33:04.080Z"
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -46,6 +46,7 @@ Plan: 2 of 4
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-shell-dashboard P01 | 9min | 2 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,9 @@ Recent decisions affecting current work:
 - [Pre-Phase 1]: Apple Developer account acquisition must begin before or during Phase 1 (notarization takes 1-5 days to process)
 - [01-00]: test.todo() used for stubs (not test.skip()) — reports as "todo" not "skipped" in vitest output, clearer signal awaiting implementation
 - [01-00]: vitest.config.ts uses node environment globally; jsdom added per-file when renderer component tests need DOM
+- [Phase 01-shell-dashboard]: sprite:login uses Path A (browser OAuth via spawn sprite login) — not Path B token paste
+- [Phase 01-shell-dashboard]: SpriteAPI interface excludes listSprites — renderer fetches sprite list directly via fetch()
+- [Phase 01-shell-dashboard]: Tailwind v4 CSS variables use @theme block; @apply with variable-based utilities unsupported
 
 ### Pending Todos
 
@@ -74,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:23:01Z
-Stopped at: Completed 01-00-PLAN.md
-Resume file: .planning/phases/01-shell-dashboard/01-01-PLAN.md
+Last session: 2026-03-19T15:33:04.078Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

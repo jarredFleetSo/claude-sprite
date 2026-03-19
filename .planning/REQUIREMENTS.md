@@ -7,11 +7,11 @@
 
 ### Shell & Setup
 
-- [ ] **SHELL-01**: Electron app launches with React renderer via electron-vite
+- [x] **SHELL-01**: Electron app launches with React renderer via electron-vite
 - [x] **SHELL-02**: Setup wizard collects sprite token, org, and Anthropic API key on first launch
 - [x] **SHELL-03**: Config persists to electron-store (reads existing cs config if present)
 - [x] **SHELL-04**: IPC architecture uses contextBridge with sandboxed preload (contextIsolation: true)
-- [ ] **SHELL-05**: PATH resolution works in packaged macOS app (shell env inheritance)
+- [x] **SHELL-05**: PATH resolution works in packaged macOS app (shell env inheritance)
 - [ ] **SHELL-06**: System tray / menubar mode with quick status indicator
 - [ ] **SHELL-07**: Auto-update checks GitHub Releases and prompts user to install
 
@@ -85,11 +85,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SHELL-01 | Phase 1 | Pending |
+| SHELL-01 | Phase 1 | Complete |
 | SHELL-02 | Phase 1 | Complete |
 | SHELL-03 | Phase 1 | Complete |
 | SHELL-04 | Phase 1 | Complete |
-| SHELL-05 | Phase 1 | Pending |
+| SHELL-05 | Phase 1 | Complete |
 | SHELL-06 | Phase 4 | Pending |
 | SHELL-07 | Phase 4 | Pending |
 | DASH-01 | Phase 1 | Complete |
