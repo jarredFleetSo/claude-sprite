@@ -10,6 +10,9 @@ interface UseTerminalResult {
   termRef: React.MutableRefObject<Terminal | null>
 }
 
+// Track which session ID is current per sprite to prevent stale cleanups
+let sessionCounter = 0
+
 export function useTerminal(
   containerRef: React.RefObject<HTMLDivElement | null>,
   sprite: string,
@@ -22,10 +25,14 @@ export function useTerminal(
   const updateTerminalTabStatus = useUIStore((s) => s.updateTerminalTabStatus)
   const firstDataRef = useRef(false)
 
-  // Main lifecycle effect — mount/unmount only
+  // Main lifecycle effect
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    // Track this specific session
+    const mySession = ++sessionCounter
+    let cleaned = false
 
     firstDataRef.current = false
 
@@ -45,57 +52,71 @@ export function useTerminal(
     fitAddonRef.current = fitAddon
     termRef.current = term
 
-    // Fit after DOM is laid out (non-zero dimensions), then open PTY
-    requestAnimationFrame(() => {
+    // Small delay to let DOM settle, then open PTY
+    const openTimer = setTimeout(() => {
+      if (cleaned) return
       fitAddon.fit()
       const { cols, rows } = term
-      console.log(`[useTerminal] Opening PTY for ${sprite} (${cols}x${rows})`)
+      console.log(`[useTerminal] Session ${mySession}: Opening PTY for ${sprite} (${cols}x${rows})`)
       window.spriteAPI.terminalOpen(sprite, org, cols, rows).then((r) => {
-        console.log(`[useTerminal] terminalOpen result:`, r)
+        console.log(`[useTerminal] Session ${mySession}: terminalOpen result:`, r)
       }).catch((err) => {
-        console.error(`[useTerminal] terminalOpen error:`, err)
+        console.error(`[useTerminal] Session ${mySession}: terminalOpen error:`, err)
       })
-    })
+    }, 200)
 
-    // Keystrokes → IPC → PTY
+    // Keystrokes → IPC
     const dataDispose = term.onData((data) => {
-      window.spriteAPI.terminalInput(sprite, data)
+      if (!cleaned) window.spriteAPI.terminalInput(sprite, data)
     })
 
-    // PTY output → xterm.js; update status to 'connected' on first data
+    // PTY output → xterm.js
     const cleanupOutput = window.spriteAPI.onTerminalOutput(sprite, (data) => {
-      term.write(data)
-      if (!firstDataRef.current) {
-        firstDataRef.current = true
-        updateTerminalTabStatus(sprite, 'connected')
+      if (!cleaned) {
+        term.write(data)
+        if (!firstDataRef.current) {
+          firstDataRef.current = true
+          updateTerminalTabStatus(sprite, 'connected')
+        }
       }
     })
 
     // PTY exited
     const cleanupExit = window.spriteAPI.onTerminalExit(sprite, () => {
-      term.write('\r\n[Connection closed]\r\n')
-      updateTerminalTabStatus(sprite, 'disconnected')
+      if (!cleaned) {
+        term.write('\r\n[Connection closed]\r\n')
+        updateTerminalTabStatus(sprite, 'disconnected')
+      }
     })
 
-    // Resize: ResizeObserver → FitAddon → IPC (100ms debounce)
+    // Resize observer (debounced)
     let resizeTimer: ReturnType<typeof setTimeout> | null = null
     const observer = new ResizeObserver(() => {
-      if (!containerRef.current) return
+      if (cleaned || !containerRef.current) return
       if (resizeTimer) clearTimeout(resizeTimer)
       resizeTimer = setTimeout(() => {
+        if (cleaned) return
         fitAddon.fit()
         window.spriteAPI.terminalResize(sprite, term.cols, term.rows)
-      }, 100)
+      }, 150)
     })
     observer.observe(container)
 
     return () => {
+      cleaned = true
+      clearTimeout(openTimer)
       if (resizeTimer) clearTimeout(resizeTimer)
       dataDispose.dispose()
       cleanupOutput()
       cleanupExit()
       observer.disconnect()
-      window.spriteAPI.terminalClose(sprite)
+      // Only close if this is still the current session for this sprite
+      if (mySession === sessionCounter) {
+        console.log(`[useTerminal] Session ${mySession}: Closing PTY for ${sprite}`)
+        window.spriteAPI.terminalClose(sprite)
+      } else {
+        console.log(`[useTerminal] Session ${mySession}: Skipping close (superseded by ${sessionCounter})`)
+      }
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null
@@ -103,14 +124,14 @@ export function useTerminal(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sprite, org])
 
-  // Theme changes — update options without remounting
+  // Theme changes
   useEffect(() => {
     if (termRef.current) {
       termRef.current.options.theme = theme === 'dark' ? DARK_THEME : LIGHT_THEME
     }
   }, [theme])
 
-  // Re-fit when tab becomes active (panel may have resized while hidden)
+  // Re-fit when tab becomes active
   useEffect(() => {
     if (active && fitAddonRef.current) {
       requestAnimationFrame(() => {
