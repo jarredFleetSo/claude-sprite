@@ -30,6 +30,7 @@ export function SyncProgress({ spriteName }: SyncProgressProps) {
       const timer = setTimeout(reset, 3000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [status, reset])
 
   const isActive = status === 'pushing' || status === 'pulling'
