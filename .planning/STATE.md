@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-03-19T16:08:25.050Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-19T17:07:10.560Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** See what's running on every sprite at a glance and interact with it without remembering CLI commands.
-**Current focus:** Phase 01 — shell-dashboard
+**Current focus:** Phase 02 — dispatch-file-sync
 
 ## Current Position
 
-Phase: 01 (shell-dashboard) — EXECUTING
-Plan: 2 of 4
+Phase: 02 (dispatch-file-sync) — EXECUTING
+Plan: 1 of 3
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Plan: 2 of 4
 
 *Updated after each plan completion*
 | Phase 01-shell-dashboard P01 | 9min | 2 tasks | 20 files |
+| Phase 02-dispatch-file-sync P01 | 3 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Recent decisions affecting current work:
 - [Phase 01-shell-dashboard]: sprite:login uses Path A (browser OAuth via spawn sprite login) — not Path B token paste
 - [Phase 01-shell-dashboard]: SpriteAPI interface excludes listSprites — renderer fetches sprite list directly via fetch()
 - [Phase 01-shell-dashboard]: Tailwind v4 CSS variables use @theme block; @apply with variable-based utilities unsupported
+- [Phase 02-dispatch-file-sync]: Per-sprite namespaced IPC channels (dispatch:log:{sprite}) used for all push channels to support concurrent dispatches
+- [Phase 02-dispatch-file-sync]: Two-phase dispatch: cs dispatch exits after tmux launch; 1s polling loop on cs logs streams Claude output
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:33:04.078Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-03-19T17:07:10.558Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None

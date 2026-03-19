@@ -27,16 +27,16 @@
 
 ### Dispatch & Monitoring
 
-- [ ] **DISP-01**: User can fire a Claude dispatch with a text prompt on a selected sprite
-- [ ] **DISP-02**: User can see real-time streaming output from a running dispatch
-- [ ] **DISP-03**: User can abort a running dispatch from the UI
-- [ ] **DISP-04**: OS notification fires when dispatch completes or fails
+- [x] **DISP-01**: User can fire a Claude dispatch with a text prompt on a selected sprite
+- [x] **DISP-02**: User can see real-time streaming output from a running dispatch
+- [x] **DISP-03**: User can abort a running dispatch from the UI
+- [x] **DISP-04**: OS notification fires when dispatch completes or fails
 
 ### File Sync
 
-- [ ] **SYNC-01**: User can push local files to sprite with progress indication
-- [ ] **SYNC-02**: User can pull files from sprite to local machine
-- [ ] **SYNC-03**: Files auto-sync before dispatch (configurable)
+- [x] **SYNC-01**: User can push local files to sprite with progress indication
+- [x] **SYNC-02**: User can pull files from sprite to local machine
+- [x] **SYNC-03**: Files auto-sync before dispatch (configurable)
 
 ### Terminal
 
@@ -99,13 +99,13 @@
 | DASH-05 | Phase 1 | Complete |
 | DASH-06 | Phase 1 | Complete |
 | DASH-07 | Phase 1 | Complete |
-| DISP-01 | Phase 2 | Pending |
-| DISP-02 | Phase 2 | Pending |
-| DISP-03 | Phase 2 | Pending |
-| DISP-04 | Phase 2 | Pending |
-| SYNC-01 | Phase 2 | Pending |
-| SYNC-02 | Phase 2 | Pending |
-| SYNC-03 | Phase 2 | Pending |
+| DISP-01 | Phase 2 | Complete |
+| DISP-02 | Phase 2 | Complete |
+| DISP-03 | Phase 2 | Complete |
+| DISP-04 | Phase 2 | Complete |
+| SYNC-01 | Phase 2 | Complete |
+| SYNC-02 | Phase 2 | Complete |
+| SYNC-03 | Phase 2 | Complete |
 | TERM-01 | Phase 3 | Pending |
 | PKG-01 | Phase 4 | Pending |
 | PKG-02 | Phase 4 | Pending |
