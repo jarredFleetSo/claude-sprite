@@ -54,6 +54,11 @@ export interface SyncResult {
   error?: string
 }
 
+export interface TerminalTabInfo {
+  sprite: SpriteInfo
+  status: 'connecting' | 'connected' | 'disconnected'
+}
+
 // IPC API shape exposed via contextBridge
 export interface SpriteAPI {
   listSprites: () => Promise<SpriteInfo[]>
@@ -74,4 +79,12 @@ export interface SpriteAPI {
   syncPull: (sprite: string) => Promise<SyncResult>
   onSyncProgress: (sprite: string, cb: (line: string) => void) => () => void
   onSyncDone: (sprite: string, cb: (result: { success: boolean }) => void) => () => void
+
+  // Terminal
+  terminalOpen: (sprite: string, org: string, cols: number, rows: number) => Promise<{ ok: boolean }>
+  terminalClose: (sprite: string) => Promise<{ ok: boolean }>
+  terminalInput: (sprite: string, data: string) => void
+  terminalResize: (sprite: string, cols: number, rows: number) => void
+  onTerminalOutput: (sprite: string, cb: (data: string) => void) => () => void
+  onTerminalExit: (sprite: string, cb: (result: { code: number }) => void) => () => void
 }

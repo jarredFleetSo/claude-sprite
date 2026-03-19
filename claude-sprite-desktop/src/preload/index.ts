@@ -44,4 +44,24 @@ contextBridge.exposeInMainWorld('spriteAPI', {
     ipcRenderer.on(`sync:done:${sprite}`, handler)
     return () => ipcRenderer.removeListener(`sync:done:${sprite}`, handler)
   },
+
+  // Terminal
+  terminalOpen: (sprite: string, org: string, cols: number, rows: number) =>
+    ipcRenderer.invoke('terminal:open', { sprite, org, cols, rows }),
+  terminalClose: (sprite: string) =>
+    ipcRenderer.invoke('terminal:close', { sprite }),
+  terminalInput: (sprite: string, data: string) =>
+    ipcRenderer.send('terminal:input', { sprite, data }),
+  terminalResize: (sprite: string, cols: number, rows: number) =>
+    ipcRenderer.send('terminal:resize', { sprite, cols, rows }),
+  onTerminalOutput: (sprite: string, cb: (data: string) => void) => {
+    const handler = (_: unknown, data: string) => cb(data)
+    ipcRenderer.on(`terminal:output:${sprite}`, handler)
+    return () => ipcRenderer.removeListener(`terminal:output:${sprite}`, handler)
+  },
+  onTerminalExit: (sprite: string, cb: (result: { code: number }) => void) => {
+    const handler = (_: unknown, result: { code: number }) => cb(result)
+    ipcRenderer.on(`terminal:exit:${sprite}`, handler)
+    return () => ipcRenderer.removeListener(`terminal:exit:${sprite}`, handler)
+  },
 })
