@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-19T18:00:04.332Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-19T18:06:10.630Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 
 ## Current Position
 
-Phase: 03 (embedded-terminal) — EXECUTING
-Plan: 1 of 2
+Phase: 03 (embedded-terminal) — COMPLETE (pending human verification of Task 3)
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Plan: 1 of 2
 | Phase 02-dispatch-file-sync P01 | 3 | 2 tasks | 10 files |
 | Phase 02-dispatch-file-sync P03 | 15 | 2 tasks | 4 files |
 | Phase 03-embedded-terminal P01 | 2 | 2 tasks | 8 files |
+| Phase 03-embedded-terminal P02 | 10 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 03-01]: node-pty added to onlyBuiltDependencies in pnpm-workspace.yaml — pnpm v10 requires explicit approval of build scripts
 - [Phase 03-01]: terminal:input/resize use ipcMain.on (fire-and-forget) rather than handle/invoke to eliminate Promise overhead on every keystroke
 - [Phase 03-01]: before-quit hook kills all PTY sessions to prevent orphaned sprite console processes when Electron app closes
+- [Phase 03-02]: CSS display toggle (display: none/block) used for tab switching — not React conditional render — preserves PTY session and scrollback across tab switches
+- [Phase 03-02]: next-themes ThemeProvider added to App.tsx wrapping full app — required for useTheme() hook to work in TerminalTab
+- [Phase 03-02]: ResizeObserver on container with 100ms debounce feeds FitAddon.fit() then terminalResize IPC — avoids window.resize limitation
 
 ### Pending Todos
 
@@ -87,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T18:00:04.330Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-19T18:30:00.000Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
