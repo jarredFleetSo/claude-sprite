@@ -7,6 +7,7 @@ interface AppConfig {
   org: string
   anthropicApiKey: string
   theme?: 'light' | 'dark' | 'system'
+  autoSyncBeforeDispatch?: boolean
 }
 
 let storeInstance: any = null
