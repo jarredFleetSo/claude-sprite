@@ -5,6 +5,7 @@ import { useConfig } from './hooks/useConfig'
 import SetupWizard from './routes/SetupWizard'
 import { Dashboard } from './routes/Dashboard'
 import './assets/main.css'
+import '@xterm/xterm/css/xterm.css'
 
 const queryClient = new QueryClient()
 

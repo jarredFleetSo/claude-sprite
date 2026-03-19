@@ -1,107 +1,101 @@
-import * as pty from 'node-pty'
-import type { IPty } from 'node-pty'
+import { spawn, type ChildProcess } from 'child_process'
 import * as path from 'path'
 import * as os from 'os'
 
-const sessions = new Map<string, IPty>()
+interface Session {
+  proc: ChildProcess
+  sprite: string
+}
+
+const sessions = new Map<string, Session>()
 
 function getEnvWithPath(): Record<string, string> {
   const env = { ...process.env } as Record<string, string>
-  // Ensure common bin dirs are in PATH (macOS strips PATH for GUI apps)
-  const extraPaths = [
+  const extra = [
     path.join(os.homedir(), '.local', 'bin'),
     '/usr/local/bin',
     '/opt/homebrew/bin',
   ]
-  const currentPath = env.PATH || ''
-  const missing = extraPaths.filter((p) => !currentPath.includes(p))
-  if (missing.length > 0) {
-    env.PATH = [...missing, currentPath].join(':')
-  }
+  const cur = env.PATH || ''
+  const missing = extra.filter((p) => !cur.includes(p))
+  if (missing.length > 0) env.PATH = [...missing, cur].join(':')
+  env.TERM = 'xterm-256color'
   return env
 }
 
 export function openSession(
   spriteName: string,
   spriteOrg: string,
-  cols: number,
-  rows: number,
+  _cols: number,
+  _rows: number,
   onData: (data: string) => void,
   onExit: (code: number) => void
 ): void {
-  // Kill existing session for this sprite if any
   const existing = sessions.get(spriteName)
   if (existing) {
-    try {
-      existing.kill()
-    } catch {
-      // Ignore errors killing stale session
-    }
+    try { existing.proc.kill() } catch { /* ignore */ }
     sessions.delete(spriteName)
   }
 
   const env = getEnvWithPath()
-  console.log('[pty-manager] Opening session for', spriteName, 'org:', spriteOrg)
-  console.log('[pty-manager] PATH includes ~/.local/bin:', env.PATH?.includes('.local/bin'))
+  console.log('[pty-manager] Spawning sprite exec --tty for', spriteName)
 
-  let ptyProcess: IPty
-  try {
-    ptyProcess = pty.spawn('sprite', ['-o', spriteOrg, '-s', spriteName, 'console'], {
-      name: 'xterm-256color',
-      cols,
-      rows,
-      cwd: env.HOME || os.homedir(),
-      env,
-    })
-  } catch (err) {
-    console.error('[pty-manager] Failed to spawn sprite console:', err)
-    onData(`\r\nError: Failed to start terminal - ${err}\r\n`)
-    onExit(-1)
-    return
-  }
-
-  ptyProcess.onData((data) => onData(data))
-  ptyProcess.onExit(({ exitCode }) => {
-    sessions.delete(spriteName)
-    onExit(exitCode)
+  const proc = spawn('sprite', [
+    '-o', spriteOrg,
+    '-s', spriteName,
+    'exec', '--tty', '--',
+    '/bin/bash',
+  ], {
+    env,
+    stdio: ['pipe', 'pipe', 'pipe'],
   })
 
-  sessions.set(spriteName, ptyProcess)
+  sessions.set(spriteName, { proc, sprite: spriteName })
+
+  proc.stdout?.on('data', (chunk: Buffer) => {
+    onData(chunk.toString())
+  })
+
+  proc.stderr?.on('data', (chunk: Buffer) => {
+    onData(chunk.toString())
+  })
+
+  proc.on('close', (code) => {
+    console.log('[pty-manager] Session closed for', spriteName, 'code:', code)
+    sessions.delete(spriteName)
+    onExit(code ?? -1)
+  })
+
+  proc.on('error', (err) => {
+    console.error('[pty-manager] Spawn error for', spriteName, err.message)
+    onData(`\r\nError: ${err.message}\r\n`)
+    sessions.delete(spriteName)
+    onExit(-1)
+  })
 }
 
 export function writeToSession(spriteName: string, data: string): void {
   const session = sessions.get(spriteName)
-  if (session) {
-    session.write(data)
+  if (session?.proc.stdin?.writable) {
+    session.proc.stdin.write(data)
   }
 }
 
-export function resizeSession(spriteName: string, cols: number, rows: number): void {
-  const session = sessions.get(spriteName)
-  if (session) {
-    session.resize(cols, rows)
-  }
+export function resizeSession(_spriteName: string, _cols: number, _rows: number): void {
+  // child_process doesn't support resize — sprite exec handles terminal size via SSH
 }
 
 export function killSession(spriteName: string): void {
   const session = sessions.get(spriteName)
   if (session) {
-    try {
-      session.kill()
-    } catch {
-      // Ignore errors killing session
-    }
+    try { session.proc.kill() } catch { /* ignore */ }
     sessions.delete(spriteName)
   }
 }
 
 export function killAllSessions(): void {
   for (const [name, session] of sessions) {
-    try {
-      session.kill()
-    } catch {
-      // Ignore errors killing session
-    }
+    try { session.proc.kill() } catch { /* ignore */ }
     sessions.delete(name)
   }
 }

@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { WebglAddon } from '@xterm/addon-webgl'
-import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { useUIStore } from '../../store/ui'
 import { DARK_THEME, LIGHT_THEME } from './themes'
 
@@ -32,7 +30,6 @@ export function useTerminal(
     firstDataRef.current = false
 
     const fitAddon = new FitAddon()
-    const unicode11 = new Unicode11Addon()
 
     const term = new Terminal({
       fontFamily: 'ui-monospace, "Cascadia Code", "Fira Code", monospace',
@@ -43,18 +40,7 @@ export function useTerminal(
     })
 
     term.loadAddon(fitAddon)
-    term.loadAddon(unicode11)
-    term.unicode.activeVersion = '11'
-
     term.open(container)
-
-    // WebGL renderer — load after open() so canvas exists in DOM
-    try {
-      const webgl = new WebglAddon()
-      term.loadAddon(webgl)
-    } catch {
-      // WebGL unavailable — canvas renderer is the fallback
-    }
 
     fitAddonRef.current = fitAddon
     termRef.current = term
@@ -63,7 +49,12 @@ export function useTerminal(
     requestAnimationFrame(() => {
       fitAddon.fit()
       const { cols, rows } = term
-      window.spriteAPI.terminalOpen(sprite, org, cols, rows)
+      console.log(`[useTerminal] Opening PTY for ${sprite} (${cols}x${rows})`)
+      window.spriteAPI.terminalOpen(sprite, org, cols, rows).then((r) => {
+        console.log(`[useTerminal] terminalOpen result:`, r)
+      }).catch((err) => {
+        console.error(`[useTerminal] terminalOpen error:`, err)
+      })
     })
 
     // Keystrokes → IPC → PTY
