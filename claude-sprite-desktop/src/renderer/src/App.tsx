@@ -1,14 +1,39 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from '@/components/ui/sonner'
+import { useConfig } from './hooks/useConfig'
+import SetupWizard from './routes/SetupWizard'
+import { Dashboard } from './routes/Dashboard'
 import './assets/main.css'
 
 const queryClient = new QueryClient()
 
+function AppContent() {
+  const { data: config, isLoading } = useConfig()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  if (!config) {
+    return <SetupWizard />
+  }
+
+  if (config.autoImported && !config.anthropicApiKey) {
+    return <SetupWizard initialStep={3} initialOrg={config.org} />
+  }
+
+  return <Dashboard />
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background text-foreground">
-        <p className="p-4">Claude Sprite Desktop -- Shell ready</p>
-      </div>
+      <AppContent />
+      <Toaster />
     </QueryClientProvider>
   )
 }
