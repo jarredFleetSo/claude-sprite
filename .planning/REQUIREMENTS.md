@@ -8,22 +8,22 @@
 ### Shell & Setup
 
 - [ ] **SHELL-01**: Electron app launches with React renderer via electron-vite
-- [ ] **SHELL-02**: Setup wizard collects sprite token, org, and Anthropic API key on first launch
-- [ ] **SHELL-03**: Config persists to electron-store (reads existing cs config if present)
-- [ ] **SHELL-04**: IPC architecture uses contextBridge with sandboxed preload (contextIsolation: true)
+- [x] **SHELL-02**: Setup wizard collects sprite token, org, and Anthropic API key on first launch
+- [x] **SHELL-03**: Config persists to electron-store (reads existing cs config if present)
+- [x] **SHELL-04**: IPC architecture uses contextBridge with sandboxed preload (contextIsolation: true)
 - [ ] **SHELL-05**: PATH resolution works in packaged macOS app (shell env inheritance)
 - [ ] **SHELL-06**: System tray / menubar mode with quick status indicator
 - [ ] **SHELL-07**: Auto-update checks GitHub Releases and prompts user to install
 
 ### Sprite Dashboard
 
-- [ ] **DASH-01**: List all sprites with visual status indicators (running/cold/stopped)
-- [ ] **DASH-02**: Start a stopped/cold sprite from the dashboard
-- [ ] **DASH-03**: Stop a running sprite from the dashboard
-- [ ] **DASH-04**: Destroy a sprite from the dashboard (with confirmation)
-- [ ] **DASH-05**: Create a new sprite from the dashboard
-- [ ] **DASH-06**: Quick-action buttons per sprite (start/stop/attach/dispatch)
-- [ ] **DASH-07**: Auto-polling sprite status at regular intervals
+- [x] **DASH-01**: List all sprites with visual status indicators (running/cold/stopped)
+- [x] **DASH-02**: Start a stopped/cold sprite from the dashboard
+- [x] **DASH-03**: Stop a running sprite from the dashboard
+- [x] **DASH-04**: Destroy a sprite from the dashboard (with confirmation)
+- [x] **DASH-05**: Create a new sprite from the dashboard
+- [x] **DASH-06**: Quick-action buttons per sprite (start/stop/attach/dispatch)
+- [x] **DASH-07**: Auto-polling sprite status at regular intervals
 
 ### Dispatch & Monitoring
 
@@ -86,19 +86,19 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SHELL-01 | Phase 1 | Pending |
-| SHELL-02 | Phase 1 | Pending |
-| SHELL-03 | Phase 1 | Pending |
-| SHELL-04 | Phase 1 | Pending |
+| SHELL-02 | Phase 1 | Complete |
+| SHELL-03 | Phase 1 | Complete |
+| SHELL-04 | Phase 1 | Complete |
 | SHELL-05 | Phase 1 | Pending |
 | SHELL-06 | Phase 4 | Pending |
 | SHELL-07 | Phase 4 | Pending |
-| DASH-01 | Phase 1 | Pending |
-| DASH-02 | Phase 1 | Pending |
-| DASH-03 | Phase 1 | Pending |
-| DASH-04 | Phase 1 | Pending |
-| DASH-05 | Phase 1 | Pending |
-| DASH-06 | Phase 1 | Pending |
-| DASH-07 | Phase 1 | Pending |
+| DASH-01 | Phase 1 | Complete |
+| DASH-02 | Phase 1 | Complete |
+| DASH-03 | Phase 1 | Complete |
+| DASH-04 | Phase 1 | Complete |
+| DASH-05 | Phase 1 | Complete |
+| DASH-06 | Phase 1 | Complete |
+| DASH-07 | Phase 1 | Complete |
 | DISP-01 | Phase 2 | Pending |
 | DISP-02 | Phase 2 | Pending |
 | DISP-03 | Phase 2 | Pending |

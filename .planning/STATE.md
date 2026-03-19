@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-19T14:44:14.348Z"
-last_activity: 2026-03-19 — Roadmap created, requirements mapped to 4 phases
+status: executing
+stopped_at: "Completed 01-00-PLAN.md"
+last_updated: "2026-03-19T15:23:01Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 4
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,34 +19,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** See what's running on every sprite at a glance and interact with it without remembering CLI commands.
-**Current focus:** Phase 1 — Shell + Dashboard
+**Current focus:** Phase 01 — shell-dashboard
 
 ## Current Position
 
-Phase: 1 of 4 (Shell + Dashboard)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-19 — Roadmap created, requirements mapped to 4 phases
-
-Progress: [░░░░░░░░░░] 0%
+Phase: 01 (shell-dashboard) — EXECUTING
+Plan: 2 of 4
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: -
+- Total plans completed: 1
+- Average duration: 1 min
+- Total execution time: 1 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-shell-dashboard | 1 | 1 min | 1 min |
 
 **Recent Trend:**
 
-- Last 5 plans: -
+- Last 5 plans: 01-00 (1 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -64,6 +58,8 @@ Recent decisions affecting current work:
 - [Pre-Phase 1]: Shell out to cs CLI rather than reimplement sync/dispatch/context logic
 - [Pre-Phase 1]: Sprite API polled directly from renderer via fetch + TanStack Query (no IPC proxy for read-only calls)
 - [Pre-Phase 1]: Apple Developer account acquisition must begin before or during Phase 1 (notarization takes 1-5 days to process)
+- [01-00]: test.todo() used for stubs (not test.skip()) — reports as "todo" not "skipped" in vitest output, clearer signal awaiting implementation
+- [01-00]: vitest.config.ts uses node environment globally; jsdom added per-file when renderer component tests need DOM
 
 ### Pending Todos
 
@@ -78,6 +74,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T14:44:14.346Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-shell-dashboard/01-CONTEXT.md
+Last session: 2026-03-19T15:23:01Z
+Stopped at: Completed 01-00-PLAN.md
+Resume file: .planning/phases/01-shell-dashboard/01-01-PLAN.md
