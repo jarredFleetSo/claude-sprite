@@ -56,7 +56,7 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
   const isInProgress = actionInProgress !== null
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="transition-shadow hover:shadow-md overflow-hidden">
       <CardHeader className="pb-2 pt-4 px-4">
         <div className="flex items-center justify-between gap-2">
           <span className="font-medium text-sm truncate">{sprite.name}</span>
@@ -67,7 +67,7 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
         </p>
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-0">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {category === 'running' ? (
             <Button
               variant="ghost"

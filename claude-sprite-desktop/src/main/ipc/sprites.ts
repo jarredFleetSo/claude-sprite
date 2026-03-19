@@ -30,10 +30,10 @@ export function registerSpriteHandlers(win: BrowserWindow): void {
         args.push('-o', org, '-s', sprite, 'checkpoint', 'create')
         break
       case 'destroy':
-        args.push('-o', org, 'destroy', sprite)
+        args.push('-o', org, 'destroy', '--force', sprite)
         break
       case 'create':
-        args.push('-o', org, 'create', sprite)
+        args.push('-o', org, 'create', '--skip-console', sprite)
         break
       default:
         return { success: false, error: `Unknown action: ${action}` }
