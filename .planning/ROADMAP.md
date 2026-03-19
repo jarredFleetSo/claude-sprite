@@ -29,11 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can start a stopped sprite, stop a running sprite, and destroy a sprite (with confirmation prompt) entirely from the UI
   4. User can create a new sprite from the dashboard and see it appear in the sprite list
   5. Config entered during setup persists across app restarts and pre-fills from existing cs config if present
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
+- [ ] 01-00: Test stubs (Wave 0 — Vitest config + 7 test stub files covering all testable requirements)
 - [ ] 01-01: Electron + electron-vite + React TypeScript scaffold with IPC skeleton (contextBridge, sandboxed preload, PATH resolution)
-- [ ] 01-02: Setup wizard (token/org/API key collection, electron-store persistence, cs config migration)
+- [ ] 01-02: Setup wizard (browser OAuth via sprite login, org/API key collection, electron-store persistence, cs config migration)
 - [ ] 01-03: Sprite dashboard (TanStack Query polling, status indicators, lifecycle actions)
 
 ### Phase 2: Dispatch + File Sync
@@ -88,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Shell + Dashboard | 0/3 | Not started | - |
+| 1. Shell + Dashboard | 0/4 | Not started | - |
 | 2. Dispatch + File Sync | 0/3 | Not started | - |
 | 3. Embedded Terminal | 0/1 | Not started | - |
 | 4. Packaging | 0/3 | Not started | - |
