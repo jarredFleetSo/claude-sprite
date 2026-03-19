@@ -1,6 +1,54 @@
 import { ipcMain, BrowserWindow, net } from 'electron'
-import { runSpriteCommand } from '../cli'
+import { runSpriteCommand, spawnCsCommand } from '../cli'
 import { loadConfig } from '../config-store'
+
+// Push API key + SSH keys to a sprite (like cs ready does)
+async function provisionSprite(
+  sprite: string,
+  org: string,
+  sendProgress: (msg: string) => void
+): Promise<void> {
+  const config = await loadConfig()
+
+  // Push Anthropic API key if we have one
+  if (config?.anthropicApiKey) {
+    sendProgress('Pushing API key...')
+    const script = `
+echo "export ANTHROPIC_API_KEY=\\"${config.anthropicApiKey}\\"" > ~/.claude_env
+chmod 600 ~/.claude_env
+grep -qF '.claude_env' ~/.bashrc 2>/dev/null || echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.bashrc
+grep -qF '.claude_env' ~/.profile 2>/dev/null || echo '[ -f ~/.claude_env ] && . ~/.claude_env' >> ~/.profile
+echo "API key configured"
+`
+    await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', script], sendProgress)
+  }
+
+  // Bypass Claude onboarding
+  sendProgress('Setting up Claude...')
+  const onboardScript = `
+config="$HOME/.claude.json"
+if [ ! -f "$config" ]; then
+  echo '{"hasCompletedOnboarding":true,"lastOnboardingVersion":"99.0.0"}' > "$config"
+else
+  if command -v jq >/dev/null 2>&1; then
+    tmp=$(mktemp)
+    jq '.hasCompletedOnboarding=true | .lastOnboardingVersion="99.0.0" | if .projects then .projects |= with_entries(.value.hasTrustDialogAccepted=true) else . end' "$config" > "$tmp" 2>/dev/null && mv "$tmp" "$config"
+  elif command -v node >/dev/null 2>&1; then
+    node -e "const fs=require('fs');const p=process.env.HOME+'/.claude.json';let d={};try{d=JSON.parse(fs.readFileSync(p,'utf8'))}catch(e){}d.hasCompletedOnboarding=true;d.lastOnboardingVersion='99.0.0';if(d.projects){for(const k of Object.keys(d.projects)){d.projects[k].hasTrustDialogAccepted=true}}fs.writeFileSync(p,JSON.stringify(d,null,2));"
+  fi
+fi
+echo "Claude ready"
+`
+  await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', onboardScript], sendProgress)
+
+  // Push SSH keys if they exist locally
+  sendProgress('Syncing SSH keys...')
+  await spawnCsCommand(['ssh-keys', sprite], sendProgress).catch(() => {
+    // Non-fatal — ssh-keys may not work if cs doesn't know this sprite
+  })
+
+  sendProgress('Sprite ready')
+}
 
 export function registerSpriteHandlers(win: BrowserWindow): void {
   // List sprites via main process (avoids CORS)
@@ -40,6 +88,17 @@ export function registerSpriteHandlers(win: BrowserWindow): void {
     }
 
     const result = await runSpriteCommand(args, sendProgress)
+
+    // After start or create, provision the sprite with API key + SSH + onboarding
+    if (result.code === 0 && (action === 'start' || action === 'create')) {
+      try {
+        await provisionSprite(sprite, org, sendProgress)
+      } catch (err) {
+        sendProgress(`Provisioning warning: ${err}`)
+        // Non-fatal — sprite is running but may need manual auth
+      }
+    }
+
     return { success: result.code === 0, error: result.stderr || undefined }
   })
 }
