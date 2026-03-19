@@ -12,4 +12,36 @@ contextBridge.exposeInMainWorld('spriteAPI', {
     ipcRenderer.on('lifecycle:progress', handler)
     return () => ipcRenderer.removeListener('lifecycle:progress', handler)
   },
+
+  // Dispatch
+  dispatch: (sprite: string, prompt: string, noSync?: boolean) =>
+    ipcRenderer.invoke('dispatch:launch', { sprite, prompt, noSync }),
+  abortDispatch: (sprite: string) =>
+    ipcRenderer.invoke('dispatch:abort', { sprite }),
+  onDispatchLog: (sprite: string, cb: (line: string) => void) => {
+    const handler = (_: unknown, line: string) => cb(line)
+    ipcRenderer.on(`dispatch:log:${sprite}`, handler)
+    return () => ipcRenderer.removeListener(`dispatch:log:${sprite}`, handler)
+  },
+  onDispatchDone: (sprite: string, cb: (result: { code: number | null; success: boolean }) => void) => {
+    const handler = (_: unknown, result: { code: number | null; success: boolean }) => cb(result)
+    ipcRenderer.on(`dispatch:done:${sprite}`, handler)
+    return () => ipcRenderer.removeListener(`dispatch:done:${sprite}`, handler)
+  },
+
+  // Sync
+  syncPush: (sprite: string) =>
+    ipcRenderer.invoke('sync:push', { sprite }),
+  syncPull: (sprite: string) =>
+    ipcRenderer.invoke('sync:pull', { sprite }),
+  onSyncProgress: (sprite: string, cb: (line: string) => void) => {
+    const handler = (_: unknown, line: string) => cb(line)
+    ipcRenderer.on(`sync:progress:${sprite}`, handler)
+    return () => ipcRenderer.removeListener(`sync:progress:${sprite}`, handler)
+  },
+  onSyncDone: (sprite: string, cb: (result: { success: boolean }) => void) => {
+    const handler = (_: unknown, result: { success: boolean }) => cb(result)
+    ipcRenderer.on(`sync:done:${sprite}`, handler)
+    return () => ipcRenderer.removeListener(`sync:done:${sprite}`, handler)
+  },
 })

@@ -1,4 +1,4 @@
-import { spawn } from 'child_process'
+import { spawn, ChildProcess } from 'child_process'
 
 export interface SpawnResult {
   code: number | null
@@ -32,4 +32,31 @@ export function runSpriteCommand(
       resolve({ code: -1, stdout, stderr: err.message })
     })
   })
+}
+
+export function spawnCsCommand(
+  args: string[],
+  onProgress?: (msg: string) => void
+): Promise<SpawnResult> {
+  return new Promise((resolve) => {
+    const proc = spawn('cs', args, { env: process.env })
+    let stdout = ''
+    let stderr = ''
+    proc.stdout.on('data', (data: Buffer) => {
+      const chunk = data.toString()
+      stdout += chunk
+      onProgress?.(chunk)
+    })
+    proc.stderr.on('data', (data: Buffer) => {
+      const chunk = data.toString()
+      stderr += chunk
+      onProgress?.(chunk)
+    })
+    proc.on('close', (code) => resolve({ code, stdout, stderr }))
+    proc.on('error', (err) => resolve({ code: -1, stdout, stderr: err.message }))
+  })
+}
+
+export function spawnCsStreaming(args: string[]): ChildProcess {
+  return spawn('cs', args, { env: process.env })
 }

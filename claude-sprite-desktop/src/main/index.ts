@@ -3,6 +3,8 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { registerSpriteHandlers } from './ipc/sprites'
 import { registerSetupHandlers } from './ipc/setup'
+import { registerDispatchHandlers } from './ipc/dispatch'
+import { registerSyncHandlers } from './ipc/sync'
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
@@ -25,6 +27,8 @@ app.whenReady().then(async () => {
 
   registerSpriteHandlers(win)
   registerSetupHandlers(win)
+  registerDispatchHandlers(win)
+  registerSyncHandlers(win)
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)

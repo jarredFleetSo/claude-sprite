@@ -28,6 +28,7 @@ export interface AppConfig {
   org: string
   anthropicApiKey: string
   theme?: 'light' | 'dark' | 'system'
+  autoSyncBeforeDispatch?: boolean
 }
 
 // Status display mapping
@@ -39,6 +40,20 @@ export function categorizeStatus(status: string): StatusCategory {
   return 'stopped'
 }
 
+export interface DispatchResult {
+  started: boolean
+  error?: string
+}
+
+export interface AbortResult {
+  code: number | null
+}
+
+export interface SyncResult {
+  success: boolean
+  error?: string
+}
+
 // IPC API shape exposed via contextBridge
 export interface SpriteAPI {
   listSprites: () => Promise<SpriteInfo[]>
@@ -47,4 +62,16 @@ export interface SpriteAPI {
   lifecycle: (sprite: string, org: string, action: 'start' | 'stop' | 'destroy' | 'create') => Promise<{ success: boolean; error?: string }>
   runSpriteLogin: () => Promise<{ success: boolean; error?: string }>
   onLifecycleProgress: (cb: (msg: string) => void) => () => void
+
+  // Dispatch
+  dispatch: (sprite: string, prompt: string, noSync?: boolean) => Promise<DispatchResult>
+  abortDispatch: (sprite: string) => Promise<AbortResult>
+  onDispatchLog: (sprite: string, cb: (line: string) => void) => () => void
+  onDispatchDone: (sprite: string, cb: (result: { code: number | null; success: boolean }) => void) => () => void
+
+  // Sync
+  syncPush: (sprite: string) => Promise<SyncResult>
+  syncPull: (sprite: string) => Promise<SyncResult>
+  onSyncProgress: (sprite: string, cb: (line: string) => void) => () => void
+  onSyncDone: (sprite: string, cb: (result: { success: boolean }) => void) => () => void
 }
