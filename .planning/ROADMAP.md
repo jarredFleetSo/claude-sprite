@@ -61,10 +61,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can click a sprite and open a fully functional terminal in the app that connects to a live shell on that sprite
   2. Terminal resizes correctly when the user resizes the app window or panel, with no clipped output or frozen cursor
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: Embedded terminal (node-pty main process setup, ASAR unpack config, xterm.js renderer component, resize propagation via IPC)
+- [ ] 03-01-PLAN.md — Backend plumbing: node-pty + xterm.js deps, ASAR unpack, pty-manager, IPC handlers, preload bridge, store extension
+- [ ] 03-02-PLAN.md — Terminal UI: TerminalPanel with tabs, TerminalTab with xterm.js, Dashboard 50/50 layout, SpriteCard wiring
 
 ### Phase 4: Packaging
 **Goal**: Users can download a .dmg, drag the app to Applications, and have it run without Gatekeeper warnings — and receive automatic update prompts when new versions ship.
@@ -91,5 +92,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Shell + Dashboard | 2/4 | In Progress|  |
 | 2. Dispatch + File Sync | 2/3 | In Progress|  |
-| 3. Embedded Terminal | 0/1 | Not started | - |
+| 3. Embedded Terminal | 0/2 | Not started | - |
 | 4. Packaging | 0/3 | Not started | - |
