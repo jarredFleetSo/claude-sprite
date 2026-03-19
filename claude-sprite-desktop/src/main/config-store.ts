@@ -31,9 +31,14 @@ export async function loadConfig(): Promise<(AppConfig & { autoImported?: boolea
     const raw = fs.readFileSync(csConfigPath, 'utf-8')
     const parsed = parseCsConfig(raw)
     if (parsed.sprite_token) {
+      // Extract org from token if not in config (token format: org/id/tokenid/value)
+      let org = parsed.org || ''
+      if (!org && parsed.sprite_token.includes('/')) {
+        org = parsed.sprite_token.split('/')[0]
+      }
       const imported: AppConfig = {
         spriteToken: parsed.sprite_token,
-        org: parsed.org ?? '',
+        org,
         anthropicApiKey: '',
       }
       store.set('config', imported)
