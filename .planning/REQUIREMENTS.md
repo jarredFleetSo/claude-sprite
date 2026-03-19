@@ -40,7 +40,7 @@
 
 ### Terminal
 
-- [ ] **TERM-01**: Embedded xterm.js terminal connected to sprite via node-pty + IPC
+- [x] **TERM-01**: Embedded xterm.js terminal connected to sprite via node-pty + IPC
 
 ### Packaging
 
@@ -106,7 +106,7 @@
 | SYNC-01 | Phase 2 | Complete |
 | SYNC-02 | Phase 2 | Complete |
 | SYNC-03 | Phase 2 | Complete |
-| TERM-01 | Phase 3 | Pending |
+| TERM-01 | Phase 3 | Complete |
 | PKG-01 | Phase 4 | Pending |
 | PKG-02 | Phase 4 | Pending |
 | PKG-03 | Phase 4 | Pending |

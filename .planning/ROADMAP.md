@@ -92,5 +92,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Shell + Dashboard | 2/4 | In Progress|  |
 | 2. Dispatch + File Sync | 2/3 | In Progress|  |
-| 3. Embedded Terminal | 0/2 | Not started | - |
+| 3. Embedded Terminal | 1/2 | In Progress|  |
 | 4. Packaging | 0/3 | Not started | - |
