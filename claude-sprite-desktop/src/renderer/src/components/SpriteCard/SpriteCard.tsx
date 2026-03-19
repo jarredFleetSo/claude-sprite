@@ -7,6 +7,7 @@ import { StatusBadge } from './StatusBadge'
 import { categorizeStatus } from '../../lib/sprite-types'
 import { useSpriteLifecycle } from '../../hooks/useSprites'
 import { useUIStore } from '../../store/ui'
+import { SyncProgress } from '../SyncProgress/SyncProgress'
 import type { SpriteInfo } from '../../lib/sprite-types'
 
 interface SpriteCardProps {
@@ -130,6 +131,9 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
             <Trash2 className="h-3 w-3 mr-1" />
             Destroy
           </Button>
+          {category === 'running' && (
+            <SyncProgress spriteName={sprite.name} />
+          )}
         </div>
       </CardContent>
     </Card>

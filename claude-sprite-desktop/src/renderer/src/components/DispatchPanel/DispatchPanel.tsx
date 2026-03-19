@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -47,6 +47,20 @@ export function DispatchPanel() {
   const { status, logs, launch, abort, reset } = useDispatch(spriteName)
   const [prompt, setPrompt] = useState('')
   const [noSync, setNoSync] = useState(false)
+  const [autoSync, setAutoSync] = useState(true)
+
+  useEffect(() => {
+    window.spriteAPI.loadConfig().then((config) => {
+      if (config?.autoSyncBeforeDispatch !== undefined) {
+        setAutoSync(config.autoSyncBeforeDispatch)
+      }
+    })
+  }, [])
+
+  const handleAutoSyncChange = async (value: boolean) => {
+    setAutoSync(value)
+    await window.spriteAPI.saveConfig({ autoSyncBeforeDispatch: value })
+  }
 
   const canLaunch = prompt.trim().length > 0 && ['idle', 'done', 'failed', 'aborted'].includes(status)
   const isActive = status === 'launching' || status === 'running'
@@ -96,16 +110,27 @@ export function DispatchPanel() {
 
           {/* Options row */}
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={noSync}
-                onChange={(e) => setNoSync(e.target.checked)}
-                disabled={isActive}
-                className="rounded"
-              />
-              Skip file sync
-            </label>
+            <div className="flex flex-col gap-1">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={noSync}
+                  onChange={(e) => setNoSync(e.target.checked)}
+                  disabled={isActive}
+                  className="rounded"
+                />
+                Skip file sync
+              </label>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={autoSync}
+                  onChange={(e) => handleAutoSyncChange(e.target.checked)}
+                  className="rounded"
+                />
+                Auto-sync before dispatch (default)
+              </label>
+            </div>
 
             <div className="flex gap-2">
               {isActive && (
