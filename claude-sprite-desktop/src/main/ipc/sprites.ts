@@ -23,16 +23,17 @@ export function registerSpriteHandlers(win: BrowserWindow): void {
     switch (action) {
       case 'start':
         // No 'sprite start' command -- wake via first exec
-        args.push('exec', '-s', sprite, '-o', org, 'echo', 'waking')
+        args.push('-o', org, '-s', sprite, 'exec', 'echo', 'waking')
         break
       case 'stop':
-        args.push('stop', '-s', sprite, '-o', org)
+        // No 'sprite stop' — use checkpoint create to suspend
+        args.push('-o', org, '-s', sprite, 'checkpoint', 'create')
         break
       case 'destroy':
-        args.push('destroy', sprite, '--force', '-o', org)
+        args.push('-o', org, 'destroy', sprite)
         break
       case 'create':
-        args.push('create', sprite, '--skip-console', '-o', org)
+        args.push('-o', org, 'create', sprite)
         break
       default:
         return { success: false, error: `Unknown action: ${action}` }

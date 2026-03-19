@@ -1,7 +1,25 @@
 import * as pty from 'node-pty'
 import type { IPty } from 'node-pty'
+import * as path from 'path'
+import * as os from 'os'
 
 const sessions = new Map<string, IPty>()
+
+function getEnvWithPath(): Record<string, string> {
+  const env = { ...process.env } as Record<string, string>
+  // Ensure common bin dirs are in PATH (macOS strips PATH for GUI apps)
+  const extraPaths = [
+    path.join(os.homedir(), '.local', 'bin'),
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+  ]
+  const currentPath = env.PATH || ''
+  const missing = extraPaths.filter((p) => !currentPath.includes(p))
+  if (missing.length > 0) {
+    env.PATH = [...missing, currentPath].join(':')
+  }
+  return env
+}
 
 export function openSession(
   spriteName: string,
@@ -22,13 +40,25 @@ export function openSession(
     sessions.delete(spriteName)
   }
 
-  const ptyProcess = pty.spawn('sprite', ['console', '-s', spriteName, '-o', spriteOrg], {
-    name: 'xterm-256color',
-    cols,
-    rows,
-    cwd: process.env.HOME,
-    env: process.env as Record<string, string>,
-  })
+  const env = getEnvWithPath()
+  console.log('[pty-manager] Opening session for', spriteName, 'org:', spriteOrg)
+  console.log('[pty-manager] PATH includes ~/.local/bin:', env.PATH?.includes('.local/bin'))
+
+  let ptyProcess: IPty
+  try {
+    ptyProcess = pty.spawn('sprite', ['-o', spriteOrg, '-s', spriteName, 'console'], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd: env.HOME || os.homedir(),
+      env,
+    })
+  } catch (err) {
+    console.error('[pty-manager] Failed to spawn sprite console:', err)
+    onData(`\r\nError: Failed to start terminal - ${err}\r\n`)
+    onExit(-1)
+    return
+  }
 
   ptyProcess.onData((data) => onData(data))
   ptyProcess.onExit(({ exitCode }) => {
