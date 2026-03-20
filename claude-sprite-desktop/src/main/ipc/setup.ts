@@ -2,7 +2,7 @@ import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { spawn } from 'child_process'
 import { loadConfig, saveConfig } from '../config-store'
 
-export function registerSetupHandlers(_win: BrowserWindow): void {
+export function registerSetupHandlers(win: BrowserWindow): void {
   ipcMain.handle('config:load', async () => {
     return loadConfig()
   })
@@ -13,10 +13,12 @@ export function registerSetupHandlers(_win: BrowserWindow): void {
 
   // Folder picker for project directory
   ipcMain.handle('dialog:pick-folder', async () => {
-    const result = await dialog.showOpenDialog({
+    console.log('[setup] Opening folder picker dialog')
+    const result = await dialog.showOpenDialog(win, {
       properties: ['openDirectory'],
       title: 'Select project directory',
     })
+    console.log('[setup] Folder picker result:', result.canceled ? 'canceled' : result.filePaths[0])
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
   })
