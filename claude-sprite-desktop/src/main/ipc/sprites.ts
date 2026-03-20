@@ -1,6 +1,8 @@
 import { ipcMain, BrowserWindow, net } from 'electron'
 import { runSpriteCommand, spawnCsCommand } from '../cli'
 import { loadConfig } from '../config-store'
+import * as fs from 'fs'
+import * as path from 'path'
 
 // Push API key + SSH keys to a sprite (like cs ready does)
 async function provisionSprite(
@@ -59,6 +61,98 @@ echo "Claude ready"
       await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', gitScript], sendProgress)
     }
   } catch { /* non-fatal */ }
+
+  // Auto-detect dev tools from project directory and install on sprite
+  const projectDir = config?.spriteProjects?.[sprite]
+  if (projectDir) {
+    sendProgress('Installing dev tools...')
+    const tools: string[] = []
+
+    // Detect what the project needs
+    if (fs.existsSync(path.join(projectDir, 'pyproject.toml')) || fs.existsSync(path.join(projectDir, 'requirements.txt'))) {
+      tools.push('python')
+    }
+    if (fs.existsSync(path.join(projectDir, 'package.json'))) {
+      tools.push('node')
+    }
+    if (fs.existsSync(path.join(projectDir, 'Cargo.toml'))) {
+      tools.push('rust')
+    }
+    if (fs.existsSync(path.join(projectDir, 'go.mod'))) {
+      tools.push('go')
+    }
+
+    if (tools.length > 0) {
+      const installScript = tools.map((tool) => {
+        switch (tool) {
+          case 'python':
+            return `
+# Python: install uv if missing
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh 2>&1
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+echo "Python/uv: $(uv --version 2>/dev/null || echo 'installed')"
+`
+          case 'node':
+            return `
+# Node: install via nvm if missing
+if ! command -v node >/dev/null 2>&1; then
+  echo "Installing Node.js..."
+  curl -fsSL https://fnm.vercel.app/install | bash 2>&1
+  export PATH="$HOME/.local/share/fnm:$PATH"
+  eval "$(fnm env)" 2>/dev/null
+  fnm install --lts 2>&1
+fi
+echo "Node: $(node --version 2>/dev/null || echo 'installed')"
+`
+          case 'rust':
+            return `
+# Rust: install rustup if missing
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "Installing Rust..."
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>&1
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+echo "Rust: $(rustc --version 2>/dev/null || echo 'installed')"
+`
+          case 'go':
+            return `
+# Go: install if missing
+if ! command -v go >/dev/null 2>&1; then
+  echo "Installing Go..."
+  curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf - 2>&1
+  export PATH="/usr/local/go/bin:$PATH"
+fi
+echo "Go: $(go version 2>/dev/null || echo 'installed')"
+`
+          default:
+            return ''
+        }
+      }).join('\n')
+
+      sendProgress(`Installing: ${tools.join(', ')}...`)
+      await runSpriteCommand(
+        ['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', installScript],
+        sendProgress,
+        120000 // 2 min timeout for installs
+      ).catch(() => {})
+    }
+
+    // Run custom bootstrap script if it exists in project dir
+    const bootstrapPath = path.join(projectDir, '.sprite-bootstrap.sh')
+    if (fs.existsSync(bootstrapPath)) {
+      sendProgress('Running custom bootstrap...')
+      const bootstrapScript = fs.readFileSync(bootstrapPath, 'utf-8')
+      const b64 = Buffer.from(bootstrapScript).toString('base64')
+      await runSpriteCommand(
+        ['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', `echo '${b64}' | base64 -d | bash`],
+        sendProgress,
+        120000
+      ).catch(() => {})
+    }
+  }
 
   sendProgress('Sprite ready')
 }
