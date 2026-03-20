@@ -39,18 +39,18 @@ export function openSession(
   }
 
   const env = getEnvWithPath()
-  const dirFlag = projectDir ? `--dir ${projectDir}` : ''
-  console.log('[pty-manager] Spawning sprite exec --tty for', spriteName, dirFlag ? `in ${projectDir}` : '')
+  console.log('[pty-manager] Spawning sprite exec --tty for', spriteName, projectDir ? `(project: ${projectDir})` : '')
 
   // Build the remote shell command
-  // --dir uses a REMOTE path on the sprite, so extract the project basename
-  // and let the user's home dir resolve it (e.g., /home/sprite/axiom)
-  const args = ['-o', spriteOrg, '-s', spriteName, 'exec', '--tty']
+  // If project dir is set, cd into its basename on the sprite (if it exists)
+  const args = ['-o', spriteOrg, '-s', spriteName, 'exec', '--tty', '--']
   if (projectDir) {
     const basename = require('path').basename(projectDir)
-    args.push('--dir', basename)
+    // cd into project dir if it exists, otherwise stay in ~
+    args.push('/bin/bash', '-c', `cd ~/${basename} 2>/dev/null; exec /bin/bash`)
+  } else {
+    args.push('/bin/bash')
   }
-  args.push('--', '/bin/bash')
 
   const proc = spawn('sprite', args, {
     env,
