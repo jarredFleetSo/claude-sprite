@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
+import { useQueryClient } from '@tanstack/react-query'
 import { Play, Square, Trash2, Terminal, Zap, Loader2, FolderOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '../ui/card'
 import { Button } from '../ui/button'
@@ -19,6 +20,7 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [progressMsg, setProgressMsg] = useState<string>('')
   const lifecycle = useSpriteLifecycle()
+  const queryClient = useQueryClient()
   const { data: config } = useConfig()
   const { setDestroyTarget, setShowDestroyModal, setDispatchTarget, setShowDispatchPanel, addTerminalTab } = useUIStore()
   const category = categorizeStatus(sprite.status)
@@ -63,6 +65,7 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
     if (result) {
       const projects = { ...(config?.spriteProjects || {}), [sprite.name]: result }
       await window.spriteAPI.saveConfig({ spriteProjects: projects })
+      await queryClient.invalidateQueries({ queryKey: ['config'] })
     }
   }
 
