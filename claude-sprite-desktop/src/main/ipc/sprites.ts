@@ -1,10 +1,10 @@
 import { ipcMain, BrowserWindow, net } from 'electron'
-import { runSpriteCommand, spawnCsCommand } from '../cli'
+import { runSpriteCommand } from '../cli'
 import { loadConfig } from '../config-store'
 import * as fs from 'fs'
 import * as path from 'path'
 
-// Provision a sprite with API key, tools, project sync
+// Provision a sprite with API key and dev tools
 async function provisionSprite(
   sprite: string,
   org: string,
@@ -22,7 +22,7 @@ async function provisionSprite(
       await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', script], sendProgress)
       console.log(`[provision] API key pushed for ${sprite}`)
     } catch (err) {
-      console.error(`[provision] API key push failed for ${sprite}:`, err)
+      console.error(`[provision] API key push failed:`, err)
     }
   }
 
@@ -33,63 +33,11 @@ async function provisionSprite(
     await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', onboardScript], sendProgress)
     console.log(`[provision] Claude onboarding done for ${sprite}`)
   } catch (err) {
-    console.error(`[provision] Claude onboarding failed for ${sprite}:`, err)
+    console.error(`[provision] Claude onboarding failed:`, err)
   }
 
-  // 3. SSH keys (15s timeout)
-  try {
-    sendProgress('Syncing SSH keys...')
-    await Promise.race([
-      spawnCsCommand(['ssh-keys', sprite], sendProgress).catch(() => {}),
-      new Promise<void>((r) => setTimeout(r, 15000)),
-    ])
-    console.log(`[provision] SSH keys done for ${sprite}`)
-  } catch (err) {
-    console.error(`[provision] SSH keys failed for ${sprite}:`, err)
-  }
-
-  // 4. Git config
-  try {
-    sendProgress('Setting up git...')
-    const { execSync } = require('child_process')
-    const gitName = (() => { try { return execSync('git config --global user.name', { encoding: 'utf-8' }).trim() } catch { return '' } })()
-    const gitEmail = (() => { try { return execSync('git config --global user.email', { encoding: 'utf-8' }).trim() } catch { return '' } })()
-    if (gitName || gitEmail) {
-      const parts = [gitName ? `git config --global user.name "${gitName}"` : '', gitEmail ? `git config --global user.email "${gitEmail}"` : ''].filter(Boolean).join(' && ')
-      await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', parts], sendProgress)
-    }
-    console.log(`[provision] Git config done for ${sprite}`)
-  } catch (err) {
-    console.error(`[provision] Git config failed for ${sprite}:`, err)
-  }
-
-  // 5. Sync project (git clone/pull or tar)
+  // 3. Auto-detect and install dev tools from project dir
   const projectDir = config?.spriteProjects?.[sprite]
-  if (projectDir) {
-    try {
-      sendProgress('Syncing project...')
-      const { execSync } = require('child_process')
-      const gitRemote = (() => { try { return execSync('git remote get-url origin', { cwd: projectDir, encoding: 'utf-8' }).trim() } catch { return null } })()
-      const gitBranch = (() => { try { return execSync('git rev-parse --abbrev-ref HEAD', { cwd: projectDir, encoding: 'utf-8' }).trim() } catch { return null } })()
-      const basename = path.basename(projectDir)
-
-      if (gitRemote) {
-        console.log(`[provision] Git clone/pull ${gitRemote} branch=${gitBranch} for ${sprite}`)
-        const cloneScript = `cd ~ && if [ -d "${basename}/.git" ]; then cd "${basename}" && git fetch origin && git checkout ${gitBranch || 'main'} && git pull origin ${gitBranch || 'main'} 2>&1 && echo "SYNC: pulled"; else git clone ${gitRemote} "${basename}" 2>&1 && ${gitBranch ? `cd "${basename}" && git checkout ${gitBranch} 2>&1 &&` : ''} echo "SYNC: cloned"; fi`
-        await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', cloneScript], sendProgress, 120000)
-      } else {
-        console.log(`[provision] Tar sync ${projectDir} for ${sprite}`)
-        await spawnCsCommand(['sync', projectDir, sprite], sendProgress)
-      }
-      console.log(`[provision] Project synced for ${sprite}`)
-    } catch (err) {
-      console.error(`[provision] Project sync failed for ${sprite}:`, err)
-    }
-  } else {
-    console.log(`[provision] No project dir set for ${sprite}, skipping sync`)
-  }
-
-  // 6. Auto-detect and install dev tools
   if (projectDir) {
     try {
       const tools: string[] = []
@@ -114,10 +62,10 @@ async function provisionSprite(
         console.log(`[provision] Tools installed for ${sprite}`)
       }
     } catch (err) {
-      console.error(`[provision] Tool install failed for ${sprite}:`, err)
+      console.error(`[provision] Tool install failed:`, err)
     }
 
-    // 7. Custom bootstrap script
+    // 4. Custom bootstrap script
     const bootstrapPath = path.join(projectDir, '.sprite-bootstrap.sh')
     if (fs.existsSync(bootstrapPath)) {
       try {
@@ -126,7 +74,7 @@ async function provisionSprite(
         await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', `echo '${b64}' | base64 -d | bash`], sendProgress, 120000)
         console.log(`[provision] Custom bootstrap done for ${sprite}`)
       } catch (err) {
-        console.error(`[provision] Custom bootstrap failed for ${sprite}:`, err)
+        console.error(`[provision] Custom bootstrap failed:`, err)
       }
     }
   }
@@ -171,12 +119,11 @@ export function registerSpriteHandlers(win: BrowserWindow): void {
 
     const result = await runSpriteCommand(args, sendProgress)
 
-    // After start or create, provision in background (don't block UI)
+    // After start or create, provision in background
     if (result.code === 0 && (action === 'start' || action === 'create')) {
-      console.log(`[lifecycle] ${action} succeeded for ${sprite}, starting background provision`)
+      console.log(`[lifecycle] ${action} succeeded for ${sprite}, provisioning in background`)
       provisionSprite(sprite, org, sendProgress).catch((err) => {
-        console.error(`[lifecycle] Provision failed for ${sprite}:`, err)
-        sendProgress(`Provisioning warning: ${err}`)
+        console.error(`[lifecycle] Provision failed:`, err)
       })
     }
 
