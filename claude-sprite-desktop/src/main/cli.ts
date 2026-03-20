@@ -24,11 +24,16 @@ export interface SpawnResult {
 
 export function runSpriteCommand(
   args: string[],
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  timeoutMs = 60000
 ): Promise<SpawnResult> {
   return new Promise((resolve) => {
     console.log('[cli] sprite', args.join(' '))
     const proc = spawn('sprite', args, { env: getEnv() })
+    const timer = setTimeout(() => {
+      proc.kill()
+      resolve({ code: -1, stdout: '', stderr: 'Command timed out' })
+    }, timeoutMs)
     let stdout = ''
     let stderr = ''
 
@@ -43,9 +48,11 @@ export function runSpriteCommand(
       onProgress?.(chunk)
     })
     proc.on('close', (code) => {
+      clearTimeout(timer)
       resolve({ code, stdout, stderr })
     })
     proc.on('error', (err) => {
+      clearTimeout(timer)
       resolve({ code: -1, stdout, stderr: err.message })
     })
   })
