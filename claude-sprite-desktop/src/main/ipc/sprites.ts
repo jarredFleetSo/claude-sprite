@@ -62,8 +62,27 @@ echo "Claude ready"
     }
   } catch { /* non-fatal */ }
 
-  // Auto-detect dev tools from project directory and install on sprite
+  // Sync project to sprite via git clone (if git repo) before installing tools
   const projectDir = config?.spriteProjects?.[sprite]
+  if (projectDir) {
+    sendProgress('Syncing project...')
+    try {
+      const { execSync } = require('child_process')
+      const gitRemote = (() => { try { return execSync('git remote get-url origin', { cwd: projectDir, encoding: 'utf-8' }).trim() } catch { return null } })()
+      const gitBranch = (() => { try { return execSync('git rev-parse --abbrev-ref HEAD', { cwd: projectDir, encoding: 'utf-8' }).trim() } catch { return null } })()
+      const basename = path.basename(projectDir)
+
+      if (gitRemote) {
+        const cloneScript = `cd ~ && if [ -d "${basename}/.git" ]; then cd "${basename}" && git fetch origin && git checkout ${gitBranch || 'main'} && git pull origin ${gitBranch || 'main'} 2>&1 && echo "SYNC: pulled"; else git clone ${gitRemote} "${basename}" 2>&1 && ${gitBranch ? `cd "${basename}" && git checkout ${gitBranch} 2>&1 &&` : ''} echo "SYNC: cloned"; fi`
+        await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', cloneScript], sendProgress, 120000).catch(() => {})
+      } else {
+        // Fallback: tar sync
+        await spawnCsCommand(['sync', projectDir, sprite], sendProgress).catch(() => {})
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Auto-detect dev tools from project directory and install on sprite
   if (projectDir) {
     sendProgress('Installing dev tools...')
     const tools: string[] = []
