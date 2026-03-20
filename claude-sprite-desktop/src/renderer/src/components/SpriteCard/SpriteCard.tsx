@@ -42,17 +42,28 @@ export function SpriteCard({ sprite }: SpriteCardProps) {
   async function handleStart() {
     setActionInProgress('start')
     setProgressMsg('Starting...')
-    await lifecycle.mutateAsync({ sprite: sprite.name, org: sprite.organization, action: 'start' })
+    try {
+      await lifecycle.mutateAsync({ sprite: sprite.name, org: sprite.organization, action: 'start' })
+      setProgressMsg('Started')
+    } catch (err) {
+      setProgressMsg(`Start failed: ${err}`)
+    }
+    // Force refresh after a short delay (API takes a moment to reflect status)
+    setTimeout(() => queryClient.invalidateQueries({ queryKey: ['sprites'] }), 2000)
     setActionInProgress(null)
-    setProgressMsg('')
   }
 
   async function handleStop() {
     setActionInProgress('stop')
     setProgressMsg('Stopping...')
-    await lifecycle.mutateAsync({ sprite: sprite.name, org: sprite.organization, action: 'stop' })
+    try {
+      await lifecycle.mutateAsync({ sprite: sprite.name, org: sprite.organization, action: 'stop' })
+      setProgressMsg('Stopped')
+    } catch (err) {
+      setProgressMsg(`Stop failed: ${err}`)
+    }
+    setTimeout(() => queryClient.invalidateQueries({ queryKey: ['sprites'] }), 2000)
     setActionInProgress(null)
-    setProgressMsg('')
   }
 
   function handleDestroy() {
