@@ -45,6 +45,21 @@ echo "Claude ready"
     sshTimeout,
   ])
 
+  // Copy local git config (name + email) to sprite
+  sendProgress('Setting up git...')
+  try {
+    const { execSync } = require('child_process')
+    const gitName = execSync('git config --global user.name', { encoding: 'utf-8' }).trim()
+    const gitEmail = execSync('git config --global user.email', { encoding: 'utf-8' }).trim()
+    if (gitName || gitEmail) {
+      const gitScript = [
+        gitName ? `git config --global user.name "${gitName}"` : '',
+        gitEmail ? `git config --global user.email "${gitEmail}"` : '',
+      ].filter(Boolean).join(' && ')
+      await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', gitScript], sendProgress)
+    }
+  } catch { /* non-fatal */ }
+
   sendProgress('Sprite ready')
 }
 
