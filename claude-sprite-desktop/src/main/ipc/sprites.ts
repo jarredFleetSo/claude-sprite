@@ -37,11 +37,13 @@ echo "Claude ready"
 `
   await runSpriteCommand(['-o', org, '-s', sprite, 'exec', '--', 'bash', '-c', onboardScript], sendProgress)
 
-  // Push SSH keys if they exist locally
+  // Push SSH keys (with 15s timeout — don't hang if sprite is slow)
   sendProgress('Syncing SSH keys...')
-  await spawnCsCommand(['ssh-keys', sprite], sendProgress).catch(() => {
-    // Non-fatal — ssh-keys may not work if cs doesn't know this sprite
-  })
+  const sshTimeout = new Promise<void>((resolve) => setTimeout(resolve, 15000))
+  await Promise.race([
+    spawnCsCommand(['ssh-keys', sprite], sendProgress).catch(() => {}),
+    sshTimeout,
+  ])
 
   sendProgress('Sprite ready')
 }
@@ -85,14 +87,11 @@ export function registerSpriteHandlers(win: BrowserWindow): void {
 
     const result = await runSpriteCommand(args, sendProgress)
 
-    // After start or create, provision the sprite with API key + SSH + onboarding
+    // After start or create, provision in background (don't block the UI)
     if (result.code === 0 && (action === 'start' || action === 'create')) {
-      try {
-        await provisionSprite(sprite, org, sendProgress)
-      } catch (err) {
+      provisionSprite(sprite, org, sendProgress).catch((err) => {
         sendProgress(`Provisioning warning: ${err}`)
-        // Non-fatal — sprite is running but may need manual auth
-      }
+      })
     }
 
     return { success: result.code === 0, error: result.stderr || undefined }
